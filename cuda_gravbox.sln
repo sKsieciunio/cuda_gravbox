@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36623.8 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "cuda_gravbox", "cuda_gravbox\cuda_gravbox.vcxproj", "{C4636F5F-6CC2-BB67-6664-8B907B1DDC77}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{C4636F5F-6CC2-BB67-6664-8B907B1DDC77}.Debug|x64.ActiveCfg = Debug|x64
+		{C4636F5F-6CC2-BB67-6664-8B907B1DDC77}.Debug|x64.Build.0 = Debug|x64
+		{C4636F5F-6CC2-BB67-6664-8B907B1DDC77}.Release|x64.ActiveCfg = Release|x64
+		{C4636F5F-6CC2-BB67-6664-8B907B1DDC77}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {BC44448B-EC60-4A5C-96E9-A848B1C249DB}
+	EndGlobalSection
+EndGlobal

@@ -117,7 +117,14 @@ copy "$(ProjectDir)external\glew\bin\glew32.dll" "$(OutDir)"</Command>
     <ClInclude Include="external\imgui\imstb_truetype.h" />
   </ItemGroup>
   <ItemGroup>
+    <Library Include="external\glew\lib\Release\Win32\glew32.lib" />
+    <Library Include="external\glew\lib\Release\Win32\glew32s.lib" />
+    <Library Include="external\glew\lib\Release\x64\glew32.lib" />
+    <Library Include="external\glew\lib\Release\x64\glew32s.lib" />
     <Library Include="external\glfw\lib-vc2022\glfw3.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="external\glew\bin\glew32.dll" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

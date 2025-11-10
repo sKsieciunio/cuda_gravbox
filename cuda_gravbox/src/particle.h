@@ -16,5 +16,12 @@ struct SimulationParams {
 	float dampening;   // Velocity dampening on collision (0.0 - 1.0)
 	float bounds_width;  // Simulation bounds width
 	float bounds_height; // Simulation bounds height
+	float restitution;  // Coefficient of restitution for collisions
+};
+
+struct GridParams {
+	int grid_width;    // Number of cells in x direction
+	int grid_height;   // Number of cells in y direction
+	float cell_size;   // Size of each grid cell (pixels)
 };
 

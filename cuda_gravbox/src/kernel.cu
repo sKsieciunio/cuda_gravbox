@@ -255,7 +255,7 @@ void handleCollisions(
 		allocatedSize = numParticles;
 	}
 
-	const int interations = 1;
+	const int interations = 3;
 	for (int iter = 0; iter < interations; iter++) {
 		cudaMemset(d_gridCellStart, -1, numCells * sizeof(int)); // -1 means empty
 		cudaMemset(d_gridCellEnd, 0, numCells * sizeof(int));

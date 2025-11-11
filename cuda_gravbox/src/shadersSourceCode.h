@@ -15,6 +15,7 @@ out float particleRadius;
 
 uniform mat4 projection;
 uniform float max_speed;
+uniform float radius_multiplier;
 
 vec3 hsv2rgb(vec3 c)
 {
@@ -26,7 +27,7 @@ vec3 hsv2rgb(vec3 c)
 void main()
 {
     gl_Position = projection * vec4(aPos, 0.0, 1.0);
-    gl_PointSize = aRadius * 2.0;
+    gl_PointSize = aRadius * 2.0 * radius_multiplier;
 
     float speed = length(aVelocity);
     float speed_norm = clamp(speed / max_speed, 0.0, 1.0);

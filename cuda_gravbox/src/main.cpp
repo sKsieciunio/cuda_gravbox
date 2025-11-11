@@ -17,21 +17,22 @@
 
 //constexpr float PARTICLE_RADIUS = 50.0f;
 //constexpr int n = 10;
-constexpr float PARTICLE_RADIUS = 2.0f;
-constexpr int n = 10000;
+constexpr float PARTICLE_RADIUS = 1.0f;
+constexpr int n = 100000;
 
 int window_width = 1000;
 int window_height = 800;
 float projection[16];
+float zoomLevel = 1.0f;
 float velocityToHueRange = 300.0f; // Max speed for color mapping
 
 SimulationParams simParams {
 	.gravity = -250.0f,  // Pixels/s^2 (negative = downward)
 	.dt = 0.0006f,  
-	.dampening = 0.8f,    // Energy loss on collision
+	.dampening = 0.6f,    // Energy loss on collision
 	.bounds_width = (float)window_width,
 	.bounds_height = (float)window_height,
-	.restitution = 0.8f // Coefficient of restitution
+	.restitution = 0.6f // Coefficient of restitution
 };
 
 constexpr float GRID_CELL_SIZE = 2.0f * PARTICLE_RADIUS;
@@ -55,6 +56,7 @@ extern void handleCollisions(
 );
 
 void initializeParticles(Particle* h_particles, int numParticles, float width, float height);
+void updateProjectionMatrix();
 void createOrthographicMatrix(float* matrix, float left, float right, float bottom, float top);
 
 int main()
@@ -83,7 +85,8 @@ int main()
 		Shaders::FRAGMENT_SHADER
 	);
 
-	createOrthographicMatrix(projection, 0.0f, (float)window_width, 0.0f, (float)window_height);
+	updateProjectionMatrix();
+	//createOrthographicMatrix(projection, 0.0f, (float)window_width, 0.0f, (float)window_height);
 
 	std::vector<Particle> h_particles(n);
 	initializeParticles(h_particles.data(), n, (float)window_width, (float)window_height);
@@ -127,7 +130,7 @@ int main()
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	bool paused = false;
+	bool paused = true;
 	//float gravityControl = simParams.gravity;
 	//float dampeningControl = simParams.dampening;
 
@@ -135,9 +138,16 @@ int main()
 		glViewport(0, 0, width, height);
 		window_width = width;
 		window_height = height;
-		createOrthographicMatrix(projection, 0.0f, (float)window_width, 0.0f, (float)window_height);
+		updateProjectionMatrix();
+		//createOrthographicMatrix(projection, 0.0f, (float)window_width, 0.0f, (float)window_height);
 		simParams.bounds_width = (float)window_width;
 		simParams.bounds_height = (float)window_height;
+	});
+
+	glfwSetScrollCallback(window, [](GLFWwindow* window, double xoffset, double yoffset) {
+		zoomLevel *= (float)yoffset * 0.1f + 1.0f;
+		zoomLevel = std::max(1.0f, std::min(zoomLevel, 10.0f));
+		updateProjectionMatrix();
 	});
 
 	while (!glfwWindowShouldClose(window))
@@ -179,6 +189,7 @@ int main()
 		particleShader.use();
 		particleShader.setMat4("projection", projection);
 		particleShader.setFloat("max_speed", velocityToHueRange);
+		particleShader.setFloat("radius_multiplier", zoomLevel);
 
 		glBindVertexArray(vao);
 		glDrawArrays(GL_POINTS, 0, n);
@@ -196,7 +207,7 @@ int main()
 		ImGui::SliderFloat("Gravity", &simParams.gravity, -500.0f, 0.0f);
 		ImGui::SliderFloat("Dampening", &simParams.dampening, 0.0f, 1.0f);
 		ImGui::SliderFloat("Restitution", &simParams.restitution, 0.0f, 1.0f);
-		ImGui::SliderFloat("simulation dt", &simParams.dt, 0.0001f, 0.1f, "%.4f", ImGuiSliderFlags_Logarithmic);
+		ImGui::SliderFloat("simulation dt", &simParams.dt, 0.0001f, 0.3f, "%.4f", ImGuiSliderFlags_Logarithmic);
 		ImGui::SliderFloat("Hue range", &velocityToHueRange, 10.0f, 300.0f);
 
 		if (ImGui::Button("Reset Particles"))
@@ -229,6 +240,22 @@ int main()
 
 	glfwTerminate();
 	return 0;
+}
+
+void updateProjectionMatrix()
+{
+	float centerX = window_width / 2.0f;
+	float centerY = window_height / 2.0f;
+
+	float halfWidth = (window_width / 2.0f) / zoomLevel;
+	float halfHeight = (window_height / 2.0f) / zoomLevel;
+
+	float left = centerX - halfWidth;
+	float right = centerX + halfWidth;
+	float bottom = centerY - halfHeight;
+	float top = centerY + halfHeight;
+
+	createOrthographicMatrix(projection, left, right, bottom, top);
 }
 
 void createOrthographicMatrix(float* matrix, float left, float right, float bottom, float top)

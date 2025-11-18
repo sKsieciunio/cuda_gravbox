@@ -15,6 +15,15 @@
 #include "shadersSourceCode.h"
 #include "particle.h"
 
+#define CUDA_CHECK(err) do { \
+    cudaError_t _err = (err); \
+    if (_err != cudaSuccess) { \
+        fprintf(stderr, "CUDA Error %s:%d: %s\n", \
+                __FILE__, __LINE__, cudaGetErrorString(_err)); \
+        exit(EXIT_FAILURE); \
+    } \
+} while (0)
+
 constexpr float PARTICLE_RADIUS = 20.0f;
 constexpr int n = 100;
 //constexpr float PARTICLE_RADIUS = 2.0f;
@@ -29,7 +38,7 @@ float zoomLevel = 1.0f;
 float velocityToHueRange = 300.0f; // Max speed for color mapping
 
 SimulationParams simParams {
-	.gravity = -250.0f,  // Pixels/s^2 (negative = downward)
+	.gravity = -500.0f,  // Pixels/s^2 (negative = downward)
 	.dt = 0.0006f,  
 	.dampening = 0.6f,    // Energy loss on collision
 	.bounds_width = (float)window_width,
@@ -45,9 +54,9 @@ GridParams gridParams {
 	.cell_size = GRID_CELL_SIZE,
 };
 
-extern void updateParticles(Particle* d_particles, int numParticles, const SimulationParams& params);
+//extern void updateParticles(Particle* d_particles, int numParticles, const SimulationParams& params);
 extern void handleCollisions(
-	Particle* d_particles,
+	ParticlesSoA d_particles,
 	int* d_particleGridIndex,
 	int* d_particleIndices,
 	int* d_gridCellStart,
@@ -57,7 +66,7 @@ extern void handleCollisions(
 	const SimulationParams& simParams
 );
 
-void initializeParticles(Particle* h_particles, int numParticles, float width, float height);
+void initializeParticles(ParticlesSoA& h_particles, int numParticles, float width, float height);
 void updateProjectionMatrix();
 void createOrthographicMatrix(float* matrix, float left, float right, float bottom, float top);
 
@@ -75,7 +84,7 @@ int main()
 	glewInit();
 
 	//cudaSetDevice(0); // this shit causes issues dont touch
-	cudaGLSetGLDevice(0);
+	CUDA_CHECK(cudaGLSetGLDevice(0));
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -90,43 +99,118 @@ int main()
 	updateProjectionMatrix();
 	//createOrthographicMatrix(projection, 0.0f, (float)window_width, 0.0f, (float)window_height);
 
-	std::vector<Particle> h_particles(n);
-	initializeParticles(h_particles.data(), n, (float)window_width, (float)window_height);
+	//ParticlesSoA d_particles;
+	//d_particles.count = n;
+	//CUDA_CHECK(cudaMalloc(&d_particles.position_x, n * sizeof(float)));
+	//CUDA_CHECK(cudaMalloc(&d_particles.position_y, n * sizeof(float)));
+	//CUDA_CHECK(cudaMalloc(&d_particles.prev_position_x, n * sizeof(float)));
+	//CUDA_CHECK(cudaMalloc(&d_particles.prev_position_y, n * sizeof(float)));
+	//CUDA_CHECK(cudaMalloc(&d_particles.velocity_x, n * sizeof(float)));
+	//CUDA_CHECK(cudaMalloc(&d_particles.velocity_y, n * sizeof(float)));
+	//CUDA_CHECK(cudaMalloc(&d_particles.radius, n * sizeof(float)));
 
-	GLuint vbo;
-	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, n * sizeof(Particle), h_particles.data(), GL_DYNAMIC_DRAW);
+	//initializeParticles(d_particles, n, (float)window_width, (float)window_height);
+
+	GLuint vbo_pos_x, vbo_pos_y, vbo_vel_x, vbo_vel_y, vbo_radius;
+
+	glGenBuffers(1, &vbo_pos_x);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_pos_x);
+	glBufferData(GL_ARRAY_BUFFER, n * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+
+	glGenBuffers(1, &vbo_pos_y);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_pos_y);
+	glBufferData(GL_ARRAY_BUFFER, n * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+
+	glGenBuffers(1, &vbo_vel_x);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_vel_x);
+	glBufferData(GL_ARRAY_BUFFER, n * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+
+	glGenBuffers(1, &vbo_vel_y);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_vel_y);
+	glBufferData(GL_ARRAY_BUFFER, n * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+
+	glGenBuffers(1, &vbo_radius);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_radius);
+	glBufferData(GL_ARRAY_BUFFER, n * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+
+	cudaGraphicsResource *cuda_res_pos_x, *cuda_res_pos_y, *cuda_res_vel_x, *cuda_res_vel_y, *cuda_res_radius;
+	CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&cuda_res_pos_x, vbo_pos_x, cudaGraphicsMapFlagsWriteDiscard));
+	CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&cuda_res_pos_y, vbo_pos_y, cudaGraphicsMapFlagsWriteDiscard));
+	CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&cuda_res_vel_x, vbo_vel_x, cudaGraphicsMapFlagsWriteDiscard));
+	CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&cuda_res_vel_y, vbo_vel_y, cudaGraphicsMapFlagsWriteDiscard));
+	CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&cuda_res_radius, vbo_radius, cudaGraphicsMapFlagsWriteDiscard));
+
+	ParticlesSoA d_particles;
+	d_particles.count = n;
+	CUDA_CHECK(cudaMalloc(&d_particles.prev_position_x, n * sizeof(float)));
+	CUDA_CHECK(cudaMalloc(&d_particles.prev_position_y, n * sizeof(float)));
+
+	d_particles.position_x = nullptr;
+	d_particles.position_y = nullptr;
+	d_particles.velocity_x = nullptr;
+	d_particles.velocity_y = nullptr;
+	d_particles.radius = nullptr;
+
+	{
+		size_t num_bytes;
+
+		cudaGraphicsResource* resources[] = {
+			cuda_res_pos_x,
+			cuda_res_pos_y,
+			cuda_res_vel_x,
+			cuda_res_vel_y,
+			cuda_res_radius
+		};
+		CUDA_CHECK(cudaGraphicsMapResources(5, resources));
+
+		CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.position_x, &num_bytes, cuda_res_pos_x));
+		CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.position_y, &num_bytes, cuda_res_pos_y));
+		CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.velocity_x, &num_bytes, cuda_res_vel_x));
+		CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.velocity_y, &num_bytes, cuda_res_vel_y));
+		CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.radius, &num_bytes, cuda_res_radius));
+
+		initializeParticles(d_particles, n, (float)window_width, (float)window_height);
+
+		CUDA_CHECK(cudaGraphicsUnmapResources(5, resources));
+	}
 
 	GLuint vao;
 	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(Particle), (void*)offsetof(Particle, position));
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_pos_x);
 	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Particle), (void*)offsetof(Particle, velocity));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, sizeof(Particle), (void*)offsetof(Particle, radius));
-	glEnableVertexAttribArray(2);
-	//glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, sizeof(Particle), (void*)offsetof(Particle, color));
-	//glEnableVertexAttribArray(3);
+	glVertexAttribPointer(0, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
-	cudaGraphicsResource* cuda_vbo_resource;
-	cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, vbo, cudaGraphicsMapFlagsWriteDiscard);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_pos_y);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_vel_x);
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_vel_y);
+	glEnableVertexAttribArray(3);
+	glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, vbo_radius);
+	glEnableVertexAttribArray(4);
+	glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 0, (void*)0);
 
 	int* d_particleGridIndex;
 	int* d_particleIndices;
 	int* d_gridCellStart;
 	int* d_gridCellEnd;
 
-	cudaMalloc(&d_particleGridIndex, n * sizeof(int));
-	cudaMalloc(&d_particleIndices, n * sizeof(int));
-	cudaMalloc(&d_gridCellStart, gridParams.grid_width * gridParams.grid_height * sizeof(int));
-	cudaMalloc(&d_gridCellEnd, gridParams.grid_width * gridParams.grid_height * sizeof(int));
+	CUDA_CHECK(cudaMalloc(&d_particleGridIndex, n * sizeof(int)));
+	CUDA_CHECK(cudaMalloc(&d_particleIndices, n * sizeof(int)));
+	CUDA_CHECK(cudaMalloc(&d_gridCellStart, gridParams.grid_width * gridParams.grid_height * sizeof(int)));
+	CUDA_CHECK(cudaMalloc(&d_gridCellEnd, gridParams.grid_width * gridParams.grid_height * sizeof(int)));
 
 	std::vector<int> h_indices(n);
 	for (int i = 0; i < n; i++) h_indices[i] = i;
-	cudaMemcpy(d_particleIndices, h_indices.data(), n * sizeof(int), cudaMemcpyHostToDevice);
+	CUDA_CHECK(cudaMemcpy(d_particleIndices, h_indices.data(), n * sizeof(int), cudaMemcpyHostToDevice));
 
 	glEnable(GL_PROGRAM_POINT_SIZE);
 	glEnable(GL_BLEND);
@@ -161,14 +245,28 @@ int main()
 
 		if (!paused)
 		{
-			Particle* d_particles;
 			size_t num_bytes;
-			cudaError_t mapErr = cudaGraphicsMapResources(1, &cuda_vbo_resource, 0);
-			if (mapErr != cudaSuccess) {
-				fprintf(stderr, "Failed to map resource: %s\n", cudaGetErrorString(mapErr));
-			}
 
-			cudaGraphicsResourceGetMappedPointer((void**)&d_particles, &num_bytes, cuda_vbo_resource);
+			cudaGraphicsResource* resources[] = {
+				cuda_res_pos_x,
+				cuda_res_pos_y,
+				cuda_res_vel_x,
+				cuda_res_vel_y,
+				cuda_res_radius
+			};
+			CUDA_CHECK(cudaGraphicsMapResources(5, resources));
+
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.position_x, &num_bytes, cuda_res_pos_x));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.position_y, &num_bytes, cuda_res_pos_y));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.velocity_x, &num_bytes, cuda_res_vel_x));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.velocity_y, &num_bytes, cuda_res_vel_y));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.radius, &num_bytes, cuda_res_radius));
+
+			//cudaError_t mapErr = cudaGraphicsMapResources(1, &cuda_vbo_resource, 0);
+			//if (mapErr != cudaSuccess) {
+			//	fprintf(stderr, "Failed to map resource: %s\n", cudaGetErrorString(mapErr));
+			//}
+			//cudaGraphicsResourceGetMappedPointer((void**)&d_particles, &num_bytes, cuda_vbo_resource);
 
 			//updateParticles(d_particles, n, simParams);
 
@@ -185,7 +283,7 @@ int main()
 				simParams
 			);
 
-			cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0);
+			CUDA_CHECK(cudaGraphicsUnmapResources(5, resources));
 		}
 
 		particleShader.use();
@@ -214,9 +312,20 @@ int main()
 
 		if (ImGui::Button("Reset Particles"))
 		{
-			initializeParticles(h_particles.data(), n, (float)window_width, (float)window_height);
-			glBindBuffer(GL_ARRAY_BUFFER, vbo);
-			glBufferSubData(GL_ARRAY_BUFFER, 0, n * sizeof(Particle), h_particles.data());
+			size_t num_bytes;
+			cudaGraphicsResource* resources[] = { cuda_res_pos_x, cuda_res_pos_y, cuda_res_vel_x, cuda_res_vel_y, cuda_res_radius };
+
+			CUDA_CHECK(cudaGraphicsMapResources(5, resources, 0));
+
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.position_x, &num_bytes, cuda_res_pos_x));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.position_y, &num_bytes, cuda_res_pos_y));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.velocity_x, &num_bytes, cuda_res_vel_x));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.velocity_y, &num_bytes, cuda_res_vel_y));
+			CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void**)&d_particles.radius, &num_bytes, cuda_res_radius));
+
+			initializeParticles(d_particles, n, (float)window_width, (float)window_height);
+
+			CUDA_CHECK(cudaGraphicsUnmapResources(5, resources, 0));
 		}
 
 		ImGui::End();
@@ -227,18 +336,29 @@ int main()
 		glfwSwapBuffers(window);
 	}
 
-	cudaGraphicsUnregisterResource(cuda_vbo_resource);
+	CUDA_CHECK(cudaGraphicsUnregisterResource(cuda_res_pos_x));
+	CUDA_CHECK(cudaGraphicsUnregisterResource(cuda_res_pos_y));
+	CUDA_CHECK(cudaGraphicsUnregisterResource(cuda_res_vel_x));
+	CUDA_CHECK(cudaGraphicsUnregisterResource(cuda_res_vel_y));
+	CUDA_CHECK(cudaGraphicsUnregisterResource(cuda_res_radius));
+
 	glDeleteVertexArrays(1, &vao);
-	glDeleteBuffers(1, &vbo);
+	glDeleteBuffers(1, &vbo_pos_x);
+	glDeleteBuffers(1, &vbo_pos_y);
+	glDeleteBuffers(1, &vbo_vel_x);
+	glDeleteBuffers(1, &vbo_vel_y);
+	glDeleteBuffers(1, &vbo_radius);
 
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
 
-	cudaFree(d_particleGridIndex);
-	cudaFree(d_particleIndices);
-	cudaFree(d_gridCellStart);
-	cudaFree(d_gridCellEnd);
+	CUDA_CHECK(cudaFree(d_particles.prev_position_x));
+	CUDA_CHECK(cudaFree(d_particles.prev_position_y));
+	CUDA_CHECK(cudaFree(d_particleGridIndex));
+	CUDA_CHECK(cudaFree(d_particleIndices));
+	CUDA_CHECK(cudaFree(d_gridCellStart));
+	CUDA_CHECK(cudaFree(d_gridCellEnd));
 
 	glfwTerminate();
 	return 0;
@@ -271,7 +391,7 @@ void createOrthographicMatrix(float* matrix, float left, float right, float bott
 	matrix[15] = 1.0f;
 }
 
-void initializeParticles(Particle* h_particles, int numParticles, float width, float height)
+void initializeParticles(ParticlesSoA& h_particles, int numParticles, float width, float height)
 {
 	int cols = (int)std::sqrt((float)numParticles * width / height);
 	int rows = (numParticles + cols - 1) / cols;
@@ -281,31 +401,37 @@ void initializeParticles(Particle* h_particles, int numParticles, float width, f
 
 	float jitterAmount = std::min(spacingX, spacingY) * 0.3f;
 
+	std::vector<float> h_pos_x(numParticles);
+	std::vector<float> h_pos_y(numParticles);
+	std::vector<float> h_prev_x(numParticles);
+	std::vector<float> h_prev_y(numParticles);
+	std::vector<float> h_vel_x(numParticles);
+	std::vector<float> h_vel_y(numParticles);
+	std::vector<float> h_radius(numParticles);
+
 	for (int i = 0; i < numParticles; i++) {
 		int row = i / cols;
 		int col = i % cols;
 
-		h_particles[i].position.x = spacingX * (col + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
-		h_particles[i].position.y = spacingY * (row + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
-		h_particles[i].position.x = std::max(PARTICLE_RADIUS, std::min(width - PARTICLE_RADIUS, h_particles[i].position.x));
-		h_particles[i].position.y = std::max(PARTICLE_RADIUS, std::min(height - PARTICLE_RADIUS, h_particles[i].position.y));
+		h_pos_x[i] = spacingX * (col + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
+		h_pos_y[i] = spacingY * (row + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
+		h_pos_x[i] = std::max(PARTICLE_RADIUS, std::min(width - PARTICLE_RADIUS, h_pos_x[i]));
+		h_pos_y[i] = std::max(PARTICLE_RADIUS, std::min(height - PARTICLE_RADIUS, h_pos_y[i]));
 
-		// Random position
-		//h_particles[i].position.x = (float)(rand() % (int)width);
-		//h_particles[i].position.y = (float)(rand() % (int)height);
+		h_vel_x[i] = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt; // -100 to 100 pixels/s
+		h_vel_y[i] = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt;
 
-		// Random velocity
-		h_particles[i].velocity.x = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt; // -100 to 100 pixels/s
-		h_particles[i].velocity.y = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt;
+		h_prev_x[i] = h_pos_x[i] - h_vel_x[i];
+		h_prev_y[i] = h_pos_y[i] - h_vel_y[i];
 
-		h_particles[i].previousPosition.x = h_particles[i].position.x - h_particles[i].velocity.x;
-		h_particles[i].previousPosition.y = h_particles[i].position.y - h_particles[i].velocity.y;
-
-		h_particles[i].radius = PARTICLE_RADIUS;
-
-		// Random color
-		h_particles[i].color.x = (float)rand() / RAND_MAX; // R
-		h_particles[i].color.y = (float)rand() / RAND_MAX; // G
-		h_particles[i].color.z = (float)rand() / RAND_MAX; // B
+		h_radius[i] = PARTICLE_RADIUS;
 	}
+
+	CUDA_CHECK(cudaMemcpy(h_particles.position_x, h_pos_x.data(), numParticles * sizeof(float), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(h_particles.position_y, h_pos_y.data(), numParticles * sizeof(float), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(h_particles.prev_position_x, h_prev_x.data(), numParticles * sizeof(float), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(h_particles.prev_position_y, h_prev_y.data(), numParticles * sizeof(float), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(h_particles.velocity_x, h_vel_x.data(), numParticles * sizeof(float), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(h_particles.velocity_y, h_vel_y.data(), numParticles * sizeof(float), cudaMemcpyHostToDevice));
+	CUDA_CHECK(cudaMemcpy(h_particles.radius, h_radius.data(), numParticles * sizeof(float), cudaMemcpyHostToDevice));
 }

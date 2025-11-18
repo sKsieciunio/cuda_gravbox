@@ -11,60 +11,61 @@
 #include <algorithm>
 
 // CUDA kernel for updating particle physics
-__global__ void updateParticlesKernel(Particle* particles, int numParticles, SimulationParams params)
+__global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, SimulationParams params)
 {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
 	if (idx >= numParticles) return;
 
-	Particle& p = particles[idx];
+	float pos_x = particles.position_x[idx];
+	float pos_y = particles.position_y[idx];
+	float prev_pos_x = particles.prev_position_x[idx];
+	float prev_pos_y = particles.prev_position_y[idx];
+	float radius = particles.radius[idx];
+	
+	float new_pos_x = 2 * pos_x - prev_pos_x;
+	float new_pos_y = 2 * pos_y - prev_pos_y + params.gravity * params.dt * params.dt;
 
-	float2 newPosition = make_float2(
-		2 * p.position.x - p.previousPosition.x,
-		2 * p.position.y - p.previousPosition.y + params.gravity * params.dt * params.dt
-	);
+	particles.velocity_x[idx] = (new_pos_x - prev_pos_x) / (2 * params.dt);
+	particles.velocity_y[idx] = (new_pos_y - prev_pos_y) / (2 * params.dt);
 
-	// needed for coloring 
-	p.velocity = make_float2(
-		(newPosition.x - p.previousPosition.x) / (2 * params.dt),
-		(newPosition.y - p.previousPosition.y) / (2 * params.dt)
-	);
-
-	p.previousPosition = p.position;
-	p.position = newPosition;
+	particles.prev_position_x[idx] = pos_x;
+	particles.prev_position_y[idx] = pos_y;
+	particles.position_x[idx] = new_pos_x;
+	particles.position_y[idx] = new_pos_y;
 
 	// Boundary collision detection and response
 	// Left wall
-	if (p.position.x - p.radius < 0.0f) {
-		float vx = p.position.x - p.previousPosition.x;
-		p.position.x = p.radius;
-		p.previousPosition.x = p.position.x + vx * params.dampening;
+	if (new_pos_x - radius < 0.0f) {
+		float vx = new_pos_x - prev_pos_x;
+		particles.position_x[idx] = radius;
+		particles.prev_position_x[idx] = particles.position_x[idx] + vx * params.dampening;
 	}
 
 	// Right wall
-	if (p.position.x + p.radius > params.bounds_width) {
-		float vx = p.position.x - p.previousPosition.x;
-		p.position.x = params.bounds_width - p.radius;
-		p.previousPosition.x = p.position.x + vx * params.dampening;
+	if (new_pos_x + radius > params.bounds_width) {
+		float vx = new_pos_x - prev_pos_x;
+		particles.position_x[idx] = params.bounds_width - radius;
+		particles.prev_position_x[idx] = particles.position_x[idx] + vx * params.dampening;
 	}
 
 	// Bottom wall
-	if (p.position.y - p.radius < 0.0f) {
-		float vy = p.position.y - p.previousPosition.y;
-		p.position.y = p.radius;
-		p.previousPosition.y = p.position.y + vy * params.dampening;
+	if (new_pos_y - radius < 0.0f) {
+		float vy = new_pos_y - prev_pos_y;
+		particles.position_y[idx] = radius;
+		particles.prev_position_y[idx] = particles.position_y[idx] + vy * params.dampening;
 	}
 
 	// Top wall
-	if (p.position.y + p.radius > params.bounds_height) {
-		float vy = p.position.y - p.previousPosition.y;
-		p.position.y = params.bounds_height - p.radius;
-		p.previousPosition.y = p.position.y + vy * params.dampening;
+	if (new_pos_y + radius > params.bounds_height) {
+		float vy = new_pos_y - prev_pos_y;
+		particles.position_y[idx] = params.bounds_height - radius;
+		particles.prev_position_y[idx] = particles.position_y[idx] + vy * params.dampening;
 	}
 }
 
 __global__ void assignParticlesToGridKernel(
-	Particle* particles,
+	ParticlesSoA particles,
 	int* particleGridIndex,
 	int numParticles,
 	GridParams gridParams
@@ -73,10 +74,11 @@ __global__ void assignParticlesToGridKernel(
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx >= numParticles) return;
 
-	const Particle& p = particles[idx];
+	float pos_x = particles.position_x[idx];
+	float pos_y = particles.position_y[idx];
 
-	int cellX = (int)floorf(p.position.x / gridParams.cell_size);
-	int cellY = (int)floorf(p.position.y / gridParams.cell_size);
+	int cellX = (int)floorf(pos_x / gridParams.cell_size);
+	int cellY = (int)floorf(pos_y / gridParams.cell_size);
 
 	cellX = max(0, min(cellX, gridParams.grid_width - 1));
 	cellY = max(0, min(cellY, gridParams.grid_height - 1));
@@ -108,7 +110,7 @@ __global__ void findCellBoundsKernel(
 }
 
 __global__ void handleCollisionsKernel(
-	Particle* particles,
+	ParticlesSoA particles,
 	const int* particleGridIndex,
 	const int* particleIndices,
 	const int* gridCellStart,
@@ -122,13 +124,14 @@ __global__ void handleCollisionsKernel(
 	if (idx >= numParticles) return;
 
 	int particleIdx = particleIndices[idx];
-	Particle& p1 = particles[particleIdx];
+
+	float p1_pos_x = particles.position_x[particleIdx];
+	float p1_pos_y = particles.position_y[particleIdx];
+	float p1_radius = particles.radius[particleIdx];
 
 	int cellIndex = particleGridIndex[idx];
 	int cellX = cellIndex % gridParams.grid_width;
 	int cellY = cellIndex / gridParams.grid_width;
-
-	float2 correction = make_float2(0.0f, 0.0f);
 
 	for (int dy = -1; dy <= 1; dy++)
 	{
@@ -150,16 +153,17 @@ __global__ void handleCollisionsKernel(
 			for (int i = start; i < end; i++)
 			{
 				int otherParticleIdx = particleIndices[i];
-
 				if (particleIdx >= otherParticleIdx) continue; // Avoid double checking
 
-				Particle& p2 = particles[otherParticleIdx];
+				float p2_pos_x = particles.position_x[otherParticleIdx];
+				float p2_pos_y = particles.position_y[otherParticleIdx];
+				float p2_radius = particles.radius[otherParticleIdx];
 
 				// distance between particles
-				float dx_dist = p2.position.x - p1.position.x;
-				float dy_dist = p2.position.y - p1.position.y;
+				float dx_dist = p2_pos_x - p1_pos_x;
+				float dy_dist = p2_pos_y - p1_pos_y;
 				float distSq = dx_dist * dx_dist + dy_dist * dy_dist;
-				float minDist = p1.radius + p2.radius;
+				float minDist = p1_radius + p2_radius;
 				float minDistSq = minDist * minDist;
 
 				// colision check
@@ -175,48 +179,33 @@ __global__ void handleCollisionsKernel(
 					float separationX = nx * overlap * 0.5f;
 					float separationY = ny * overlap * 0.5f;
 
-				
-					p1.position.x -= separationX;
-					p1.position.y -= separationY;
-					p2.position.x += separationX;
-					p2.position.y += separationY;
-
-								}
+					atomicAdd(&particles.position_x[particleIdx], -separationX);
+					atomicAdd(&particles.position_y[particleIdx], -separationY);
+					atomicAdd(&particles.position_x[otherParticleIdx], separationX);
+					atomicAdd(&particles.position_y[otherParticleIdx], separationY);
+				}
 			}
 		}
 	}
 }
 
-__global__ void applyPositionCorrectionsKernal(
-	Particle* particles,
-	const float2* positionCorrections,
-	int numParticles
-)
-{
-	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	if (idx >= numParticles) return;
-
-	particles[idx].position.x += positionCorrections[idx].x;
-	particles[idx].position.y += positionCorrections[idx].y;
-}
-
-// Host function to launch the kernel
-void updateParticles(Particle* d_particles, int numParticles, const SimulationParams& params)
-{
-	int blockSize = 256;
-	int numBlocks = (numParticles + blockSize - 1) / blockSize;
-
-	updateParticlesKernel << <numBlocks, blockSize >> > (d_particles, numParticles, params);
-
-	// Check for kernel launch errors
-	cudaError_t err = cudaGetLastError();
-	if (err != cudaSuccess) {
-		fprintf(stderr, "Kernel launch failed: %s\n", cudaGetErrorString(err));
-	}
-}
+//// Host function to launch the kernel
+//void updateParticles(Particle* d_particles, int numParticles, const SimulationParams& params)
+//{
+//	int blockSize = 256;
+//	int numBlocks = (numParticles + blockSize - 1) / blockSize;
+//
+//	updateParticlesKernel << <numBlocks, blockSize >> > (d_particles, numParticles, params);
+//
+//	// Check for kernel launch errors
+//	cudaError_t err = cudaGetLastError();
+//	if (err != cudaSuccess) {
+//		fprintf(stderr, "Kernel launch failed: %s\n", cudaGetErrorString(err));
+//	}
+//}
 
 void handleCollisions(
-	Particle* d_particles,
+	ParticlesSoA d_particles,
 	int* d_particleGridIndex,
 	int* d_particleIndices,
 	int* d_gridCellStart,

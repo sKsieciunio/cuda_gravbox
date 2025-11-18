@@ -2,6 +2,19 @@
 
 #include <cuda_runtime.h>
 
+struct ParticlesSoA {
+	float* position_x; 
+	float* position_y;
+	float* prev_position_x;
+	float* prev_position_y;
+	float* radius;
+	int count;
+
+	// for coloring
+	float* velocity_x;
+	float* velocity_y;
+};
+
 struct Particle {
 	float2 position;   // x, y coordinates (in pixels or normalized coordinates)
 	float2 previousPosition;

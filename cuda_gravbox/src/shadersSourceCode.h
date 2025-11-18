@@ -5,9 +5,15 @@ namespace Shaders {
     constexpr const char* VERTEX_SHADER = R"(
 #version 330 core
 
-layout(location = 0) in vec2 aPos;
-layout(location = 1) in vec2 aVelocity;
-layout(location = 2) in float aRadius;
+layout(location = 0) in float pos_x;
+layout(location = 1) in float pos_y;
+layout(location = 2) in float vel_x;
+layout(location = 3) in float vel_y;
+layout(location = 4) in float radius;
+
+//layout(location = 0) in vec2 aPos;
+//layout(location = 1) in vec2 aVelocity;
+//layout(location = 2) in float aRadius;
 //layout(location = 3) in vec3 aColor;
 
 out vec3 particleColor;
@@ -26,16 +32,16 @@ vec3 hsv2rgb(vec3 c)
 
 void main()
 {
-    gl_Position = projection * vec4(aPos, 0.0, 1.0);
-    gl_PointSize = aRadius * 2.0 * radius_multiplier;
+    gl_Position = projection * vec4(pos_x, pos_y, 0.0, 1.0);
+    gl_PointSize = radius * 2.0 * radius_multiplier;
 
-    float speed = length(aVelocity);
+    float speed = length(vec2(vel_x, vel_y));
     float speed_norm = clamp(speed / max_speed, 0.0, 1.0);
 	float hue = (1.0 - speed_norm) * 0.6; // From blue (0.6) to red (0.0)
     vec3 color = hsv2rgb(vec3(hue, 1.0, 1.0));
 
     particleColor = color;
-    particleRadius = aRadius;
+    particleRadius = radius;
 }
 )";
 

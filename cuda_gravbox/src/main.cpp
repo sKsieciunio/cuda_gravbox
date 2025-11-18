@@ -15,10 +15,12 @@
 #include "shadersSourceCode.h"
 #include "particle.h"
 
-//constexpr float PARTICLE_RADIUS = 50.0f;
-//constexpr int n = 10;
-constexpr float PARTICLE_RADIUS = 1.0f;
-constexpr int n = 100000;
+constexpr float PARTICLE_RADIUS = 20.0f;
+constexpr int n = 100;
+//constexpr float PARTICLE_RADIUS = 2.0f;
+//constexpr int n = 10000;
+//constexpr float PARTICLE_RADIUS = 1.0f;
+//constexpr int n = 100000;
 
 int window_width = 1000;
 int window_height = 800;
@@ -168,9 +170,9 @@ int main()
 
 			cudaGraphicsResourceGetMappedPointer((void**)&d_particles, &num_bytes, cuda_vbo_resource);
 
-			updateParticles(d_particles, n, simParams);
+			//updateParticles(d_particles, n, simParams);
 
-			cudaDeviceSynchronize();
+			//cudaDeviceSynchronize();
 
 			handleCollisions(
 				d_particles,
@@ -204,7 +206,7 @@ int main()
 		ImGui::Separator();
 
 		ImGui::Checkbox("Pause", &paused);
-		ImGui::SliderFloat("Gravity", &simParams.gravity, -500.0f, 0.0f);
+		ImGui::SliderFloat("Gravity", &simParams.gravity, -5000.0f, 0.0f);
 		ImGui::SliderFloat("Dampening", &simParams.dampening, 0.0f, 1.0f);
 		ImGui::SliderFloat("Restitution", &simParams.restitution, 0.0f, 1.0f);
 		ImGui::SliderFloat("simulation dt", &simParams.dt, 0.0001f, 0.3f, "%.4f", ImGuiSliderFlags_Logarithmic);
@@ -271,14 +273,33 @@ void createOrthographicMatrix(float* matrix, float left, float right, float bott
 
 void initializeParticles(Particle* h_particles, int numParticles, float width, float height)
 {
+	int cols = (int)std::sqrt((float)numParticles * width / height);
+	int rows = (numParticles + cols - 1) / cols;
+
+	float spacingX = width / (float)(cols + 1);
+	float spacingY = height / (float)(rows + 1);
+
+	float jitterAmount = std::min(spacingX, spacingY) * 0.3f;
+
 	for (int i = 0; i < numParticles; i++) {
+		int row = i / cols;
+		int col = i % cols;
+
+		h_particles[i].position.x = spacingX * (col + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
+		h_particles[i].position.y = spacingY * (row + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
+		h_particles[i].position.x = std::max(PARTICLE_RADIUS, std::min(width - PARTICLE_RADIUS, h_particles[i].position.x));
+		h_particles[i].position.y = std::max(PARTICLE_RADIUS, std::min(height - PARTICLE_RADIUS, h_particles[i].position.y));
+
 		// Random position
-		h_particles[i].position.x = (float)(rand() % (int)width);
-		h_particles[i].position.y = (float)(rand() % (int)height);
+		//h_particles[i].position.x = (float)(rand() % (int)width);
+		//h_particles[i].position.y = (float)(rand() % (int)height);
 
 		// Random velocity
-		h_particles[i].velocity.x = ((float)rand() / RAND_MAX - 0.5f) * 200.0f; // -100 to 100 pixels/s
-		h_particles[i].velocity.y = ((float)rand() / RAND_MAX - 0.5f) * 200.0f;
+		h_particles[i].velocity.x = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt; // -100 to 100 pixels/s
+		h_particles[i].velocity.y = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt;
+
+		h_particles[i].previousPosition.x = h_particles[i].position.x - h_particles[i].velocity.x;
+		h_particles[i].previousPosition.y = h_particles[i].position.y - h_particles[i].velocity.y;
 
 		h_particles[i].radius = PARTICLE_RADIUS;
 

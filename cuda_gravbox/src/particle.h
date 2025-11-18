@@ -5,8 +5,8 @@
 struct Particle {
 	float2 position;   // x, y coordinates (in pixels or normalized coordinates)
 	float2 previousPosition;
-	float2 predictedPosition;
 	float2 velocity;   // vx, vy (pixels/second or units/second)
+	float2 acceleration; // ax, ay (pixels/second^2 or units/second^2)
 	float radius; // particle radius
 	float3 color;      // RGB color (0.0 - 1.0)
 };

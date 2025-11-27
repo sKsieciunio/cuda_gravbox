@@ -22,17 +22,25 @@ __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, 
     float prev_pos_y = particles.prev_position_y[idx];
     float radius = particles.radius[idx];
 
-    // Verlet integration
-    float new_pos_x = 2 * pos_x - prev_pos_x;
-    float new_pos_y = 2 * pos_y - prev_pos_y + params.gravity * params.dt * params.dt;
+    // Calculate current velocity from position difference (more numerically stable)
+    float vel_x = (pos_x - prev_pos_x) / params.dt;
+    float vel_y = (pos_y - prev_pos_y) / params.dt;
 
-    // Update velocities
-    particles.velocity_x[idx] = (new_pos_x - prev_pos_x) / (2 * params.dt);
-    particles.velocity_y[idx] = (new_pos_y - prev_pos_y) / (2 * params.dt);
+    // Apply acceleration (gravity)
+    vel_y += params.gravity * params.dt;
 
-    // Store previous position
+    // Store current position as previous
     particles.prev_position_x[idx] = pos_x;
     particles.prev_position_y[idx] = pos_y;
+
+    // Update position using velocity
+    float new_pos_x = pos_x + vel_x * params.dt;
+    float new_pos_y = pos_y + vel_y * params.dt;
+
+    // Store velocities for visualization
+    particles.velocity_x[idx] = vel_x;
+    particles.velocity_y[idx] = vel_y;
+
     particles.position_x[idx] = new_pos_x;
     particles.position_y[idx] = new_pos_y;
 
@@ -221,7 +229,11 @@ void runPhysicsSimulation(
     cudaStream_t stream;
     cudaStreamCreate(&stream);
 
-    // Multiple iterations for constraint satisfaction
+    // Apply physics update once per frame (gravity, velocity integration)
+    updateParticlesKernel<<<numBlocks, blockSize, 0, stream>>>(
+        d_particles, numParticles, simParams);
+
+    // Multiple iterations for constraint satisfaction (collisions only)
     for (int iter = 0; iter < Config::COLLISION_ITERATIONS; iter++)
     {
         // Clear grid
@@ -251,7 +263,7 @@ void runPhysicsSimulation(
         findCellBoundsKernel<<<numBlocks, blockSize, 0, stream>>>(
             d_particleGridIndex, d_gridCellStart, d_gridCellEnd, numParticles);
 
-        // Handle collisions
+        // Handle collisions (constraint satisfaction only)
         handleCollisionsKernel<<<numBlocks, blockSize, 0, stream>>>(
             d_particles,
             d_particleGridIndex,
@@ -261,10 +273,6 @@ void runPhysicsSimulation(
             numParticles,
             gridParams,
             simParams);
-
-        // Update particle positions
-        updateParticlesKernel<<<numBlocks, blockSize, 0, stream>>>(
-            d_particles, numParticles, simParams);
     }
 
     cudaStreamDestroy(stream);

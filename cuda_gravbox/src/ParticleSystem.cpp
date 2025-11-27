@@ -134,11 +134,16 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, f
         h_pos_y[i] = std::max(particleRadius, 
                               std::min((float)windowHeight - particleRadius, h_pos_y[i]));
 
-        h_vel_x[i] = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt;
-        h_vel_y[i] = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt;
+        // Initial velocities (pixels per second, NOT multiplied by dt)
+        float init_vel_x = ((float)rand() / RAND_MAX - 0.5f) * 200.0f;
+        float init_vel_y = ((float)rand() / RAND_MAX - 0.5f) * 200.0f;
+        
+        h_vel_x[i] = init_vel_x;
+        h_vel_y[i] = init_vel_y;
 
-        h_prev_x[i] = h_pos_x[i] - h_vel_x[i];
-        h_prev_y[i] = h_pos_y[i] - h_vel_y[i];
+        // For Verlet integration: prev_pos = pos - velocity * dt
+        h_prev_x[i] = h_pos_x[i] - init_vel_x * simParams.dt;
+        h_prev_y[i] = h_pos_y[i] - init_vel_y * simParams.dt;
 
         h_radius[i] = particleRadius;
     }

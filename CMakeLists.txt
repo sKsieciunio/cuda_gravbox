@@ -32,7 +32,12 @@ set(IMGUI_SOURCES
 # App sources
 set(APP_SOURCES
     ${SRC_DIR}/main.cpp
-    ${SRC_DIR}/kernel.cu
+    ${SRC_DIR}/Application.cpp
+    ${SRC_DIR}/Camera.cpp
+    ${SRC_DIR}/Renderer.cpp
+    ${SRC_DIR}/ParticleSystem.cpp
+    ${SRC_DIR}/PhysicsEngine.cpp
+    ${SRC_DIR}/PhysicsKernels.cu
 )
 
 add_executable(${PROJECT_NAME}

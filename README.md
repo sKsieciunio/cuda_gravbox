@@ -11,10 +11,14 @@ Wymagania:
 Kroki (PowerShell):
 
 ```
-mkdir build
-cd build
-cmake -G "Visual Studio 17 2022" -A x64 ..
-cmake --build . --config Release
+# Configure
+cmake -G "Visual Studio 17 2022" -A x64 -B build/vs/vs2022-release -DCMAKE_CUDA_ARCHITECTURES=75
+
+# Build
+cmake --build build/vs/vs2022-release --config Release
+
+# Run
+./build/vs/vs2022-release/Release/cuda_gravbox.exe
 ```
 
 Plik wykonywalny: `build/Release/cuda_gravbox.exe`. CMake automatycznie skopiuje `glfw3.dll` obok pliku EXE. GLEW linkowany jest statycznie, nie wymaga DLL.

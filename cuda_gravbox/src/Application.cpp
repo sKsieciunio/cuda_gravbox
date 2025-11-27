@@ -30,6 +30,8 @@ Application::Application()
                       (int)(Config::DEFAULT_WINDOW_HEIGHT / Config::GRID_CELL_SIZE) + 1)
     , m_paused(true)
     , m_velocityToHueRange(Config::DEFAULT_VELOCITY_TO_HUE_RANGE)
+    , m_particleCount(Config::PARTICLE_COUNT)
+    , m_particleRadius(Config::PARTICLE_RADIUS)
     , m_windowWidth(Config::DEFAULT_WINDOW_WIDTH)
     , m_windowHeight(Config::DEFAULT_WINDOW_HEIGHT)
 {
@@ -62,7 +64,7 @@ bool Application::initialize() {
         m_physicsEngine.initialize();
         
         // Initialize particles
-        m_particleSystem.reset(m_windowWidth, m_windowHeight);
+        m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius);
         
         initializeImGui();
         setupCallbacks();
@@ -179,15 +181,35 @@ void Application::renderUI() {
     ImGui::Begin("Settings");
     ImGui::Text("Frame Time: %.3f ms/frame (%.1f FPS)", 
                 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-    ImGui::Text("Particles: %d", Config::PARTICLE_COUNT);
+    ImGui::Text("Particles: %d", m_particleCount);
     ImGui::Separator();
 
     ImGui::Checkbox("Pause", &m_paused);
+    
+    // Particle configuration section
+    ImGui::Separator();
+    ImGui::Text("Particle Configuration");
+    
+    static int newParticleCount = m_particleCount;
+    static float newParticleRadius = m_particleRadius;
+    
+    bool particleCountChanged = ImGui::SliderInt("Particle Count", &newParticleCount, 10, 100000, "%d", ImGuiSliderFlags_Logarithmic);
+    bool particleRadiusChanged = ImGui::SliderFloat("Particle Radius", &newParticleRadius, 0.5f, 50.0f);
+    
+    if (particleCountChanged || particleRadiusChanged) {
+        reinitializeSimulation(newParticleCount, newParticleRadius);
+    }
+    
+    ImGui::Separator();
+    ImGui::Text("Physics Parameters");
     ImGui::SliderFloat("Gravity", &m_simParams.gravity, -5000.0f, 0.0f);
     ImGui::SliderFloat("Dampening", &m_simParams.dampening, 0.0f, 1.0f);
     ImGui::SliderFloat("Restitution", &m_simParams.restitution, 0.0f, 1.0f);
     ImGui::SliderFloat("Simulation dt", &m_simParams.dt, 0.0001f, 0.3f, 
                        "%.4f", ImGuiSliderFlags_Logarithmic);
+    
+    ImGui::Separator();
+    ImGui::Text("Rendering");
     ImGui::SliderFloat("Hue range", &m_velocityToHueRange, 10.0f, 300.0f);
 
     if (ImGui::Button("Reset Particles")) {
@@ -201,7 +223,46 @@ void Application::renderUI() {
 }
 
 void Application::resetParticles() {
-    m_particleSystem.reset(m_windowWidth, m_windowHeight);
+    m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius);
+}
+
+void Application::reinitializeSimulation(int newParticleCount, float newParticleRadius) {
+    if (newParticleCount == m_particleCount && newParticleRadius == m_particleRadius) {
+        return; // No change needed
+    }
+    
+    // Pause simulation during reinitialization
+    m_paused = true;
+    
+    // Update member variables
+    m_particleCount = newParticleCount;
+    m_particleRadius = newParticleRadius;
+    
+    // Cleanup old resources
+    m_particleSystem.cleanup();
+    m_physicsEngine.cleanup();
+    m_renderer.cleanup();
+    
+    // Recreate systems with new parameters
+    m_particleSystem = ParticleSystem(newParticleCount, m_windowWidth, m_windowHeight);
+    
+    float gridCellSize = 2.0f * newParticleRadius;
+    m_physicsEngine = PhysicsEngine(newParticleCount,
+                                     (int)(m_windowWidth / gridCellSize) + 1,
+                                     (int)(m_windowHeight / gridCellSize) + 1);
+    
+    // Reinitialize
+    m_renderer.initialize(newParticleCount);
+    m_particleSystem.initialize(m_renderer);
+    m_physicsEngine.initialize();
+    
+    // Reset particles with new radius
+    m_particleSystem.reset(m_windowWidth, m_windowHeight, newParticleRadius);
+    
+    // Update grid parameters
+    m_gridParams.grid_width = (int)(m_windowWidth / gridCellSize) + 1;
+    m_gridParams.grid_height = (int)(m_windowHeight / gridCellSize) + 1;
+    m_gridParams.cell_size = gridCellSize;
 }
 
 void Application::cleanup() {

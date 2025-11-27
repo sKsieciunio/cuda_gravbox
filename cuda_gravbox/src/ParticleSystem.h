@@ -13,7 +13,7 @@ public:
     void initialize(Renderer& renderer);
     void cleanup();
     
-    void reset(int windowWidth, int windowHeight);
+    void reset(int windowWidth, int windowHeight, float particleRadius);
     
     void mapResources();
     void unmapResources();
@@ -35,5 +35,5 @@ private:
     cudaGraphicsResource* m_cuda_res_radius;
     
     void registerGLBuffers(Renderer& renderer);
-    void initializeParticleData(int windowWidth, int windowHeight);
+    void initializeParticleData(int windowWidth, int windowHeight, float particleRadius);
 };

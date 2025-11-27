@@ -107,7 +107,7 @@ void ParticleSystem::unmapResources() {
     CUDA_CHECK(cudaGraphicsUnmapResources(5, resources));
 }
 
-void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight) {
+void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, float particleRadius) {
     int cols = (int)std::sqrt((float)m_particleCount * windowWidth / (float)windowHeight);
     int rows = (m_particleCount + cols - 1) / cols;
 
@@ -129,10 +129,10 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight) {
 
         h_pos_x[i] = spacingX * (col + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
         h_pos_y[i] = spacingY * (row + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
-        h_pos_x[i] = std::max(Config::PARTICLE_RADIUS, 
-                              std::min((float)windowWidth - Config::PARTICLE_RADIUS, h_pos_x[i]));
-        h_pos_y[i] = std::max(Config::PARTICLE_RADIUS, 
-                              std::min((float)windowHeight - Config::PARTICLE_RADIUS, h_pos_y[i]));
+        h_pos_x[i] = std::max(particleRadius, 
+                              std::min((float)windowWidth - particleRadius, h_pos_x[i]));
+        h_pos_y[i] = std::max(particleRadius, 
+                              std::min((float)windowHeight - particleRadius, h_pos_y[i]));
 
         h_vel_x[i] = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt;
         h_vel_y[i] = ((float)rand() / RAND_MAX - 0.5f) * 200.0f * simParams.dt;
@@ -140,7 +140,7 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight) {
         h_prev_x[i] = h_pos_x[i] - h_vel_x[i];
         h_prev_y[i] = h_pos_y[i] - h_vel_y[i];
 
-        h_radius[i] = Config::PARTICLE_RADIUS;
+        h_radius[i] = particleRadius;
     }
 
     CUDA_CHECK(cudaMemcpy(m_particles.position_x, h_pos_x.data(), 
@@ -159,8 +159,8 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight) {
                           m_particleCount * sizeof(float), cudaMemcpyHostToDevice));
 }
 
-void ParticleSystem::reset(int windowWidth, int windowHeight) {
+void ParticleSystem::reset(int windowWidth, int windowHeight, float particleRadius) {
     mapResources();
-    initializeParticleData(windowWidth, windowHeight);
+    initializeParticleData(windowWidth, windowHeight, particleRadius);
     unmapResources();
 }

@@ -31,6 +31,10 @@ private:
     bool m_paused;
     float m_velocityToHueRange;
     
+    // Runtime particle configuration
+    int m_particleCount;
+    float m_particleRadius;
+    
     // Window management
     int m_windowWidth;
     int m_windowHeight;
@@ -48,6 +52,7 @@ private:
     
     void resetParticles();
     void updateGridParams();
+    void reinitializeSimulation(int newParticleCount, float newParticleRadius);
     
     // Static callbacks for GLFW
     static void windowSizeCallback(GLFWwindow* window, int width, int height);

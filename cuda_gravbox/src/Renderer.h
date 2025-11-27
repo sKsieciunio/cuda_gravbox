@@ -10,6 +10,7 @@ public:
     ~Renderer();
     
     void initialize();
+    void initialize(int particleCount);
     void cleanup();
     
     void beginFrame();
@@ -29,6 +30,7 @@ private:
     GLuint m_vbo_vel_x;
     GLuint m_vbo_vel_y;
     GLuint m_vbo_radius;
+    int m_particleCount;
     
     void setupBuffers(int particleCount);
     void setupVertexAttributes();

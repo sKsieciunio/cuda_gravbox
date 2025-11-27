@@ -10,6 +10,7 @@ Renderer::Renderer()
     , m_vbo_vel_x(0)
     , m_vbo_vel_y(0)
     , m_vbo_radius(0)
+    , m_particleCount(0)
 {
 }
 
@@ -18,6 +19,12 @@ Renderer::~Renderer() {
 }
 
 void Renderer::initialize() {
+    initialize(Config::PARTICLE_COUNT);
+}
+
+void Renderer::initialize(int particleCount) {
+    m_particleCount = particleCount;
+    
     // Initialize shader
     m_particleShader = Shader::FromSource(
         Shaders::VERTEX_SHADER,
@@ -25,7 +32,7 @@ void Renderer::initialize() {
     );
     
     // Setup buffers and vertex attributes
-    setupBuffers(Config::PARTICLE_COUNT);
+    setupBuffers(particleCount);
     setupVertexAttributes();
     
     // Enable OpenGL features

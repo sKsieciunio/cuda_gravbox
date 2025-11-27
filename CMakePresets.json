@@ -1,0 +1,141 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 20,
+    "patch": 0
+  },
+  "include": [],
+  "configurePresets": [
+    {
+      "name": "base-vs2022",
+      "displayName": "Base VS2022",
+      "description": "Base configure preset for Visual Studio 2022 (multi-config)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build/vs/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CUDA_STANDARD": "17",
+        "CMAKE_CUDA_ARCHITECTURES": "native",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "vs2022-debug",
+      "inherits": "base-vs2022",
+      "displayName": "VS2022 Debug",
+      "description": "Visual Studio 2022 multi-config generator (Debug)",
+      "cacheVariables": {}
+    },
+    {
+      "name": "vs2022-release",
+      "inherits": "base-vs2022",
+      "displayName": "VS2022 Release",
+      "description": "Visual Studio 2022 multi-config generator (Release)",
+      "cacheVariables": {}
+    },
+    {
+      "name": "base-ninja",
+      "displayName": "Base Ninja",
+      "description": "Base configure preset for Ninja (single-config)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/ninja/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CUDA_STANDARD": "17",
+        "CMAKE_CUDA_ARCHITECTURES": "native",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "ninja-debug",
+      "inherits": "base-ninja",
+      "displayName": "Ninja Debug",
+      "description": "Ninja single-config generator (Debug)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "ninja-release",
+      "inherits": "base-ninja",
+      "displayName": "Ninja Release",
+      "description": "Ninja single-config generator (Release)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "ninja-relwithdebinfo",
+      "inherits": "base-ninja",
+      "displayName": "Ninja RelWithDebInfo",
+      "description": "Ninja single-config generator (RelWithDebInfo)",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "vs-debug",
+      "configurePreset": "vs2022-debug",
+      "configuration": "Debug",
+      "jobs": 12
+    },
+    {
+      "name": "vs-release",
+      "configurePreset": "vs2022-release",
+      "configuration": "Release",
+      "jobs": 12
+    },
+    {
+      "name": "vs-clean",
+      "configurePreset": "vs2022-release",
+      "configuration": "Release",
+      "targets": ["clean"]
+    },
+    {
+      "name": "ninja-debug",
+      "configurePreset": "ninja-debug",
+      "jobs": 12
+    },
+    {
+      "name": "ninja-release",
+      "configurePreset": "ninja-release",
+      "jobs": 12
+    },
+    {
+      "name": "ninja-relwithdebinfo",
+      "configurePreset": "ninja-relwithdebinfo",
+      "jobs": 12
+    },
+    {
+      "name": "ninja-clean",
+      "configurePreset": "ninja-release",
+      "targets": ["clean"],
+      "jobs": 12
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "quick-release",
+      "displayName": "Configure + Build Release (VS)",
+      "steps": [
+        {"type": "configure", "name": "vs2022-release"},
+        {"type": "build", "name": "vs-release"}
+      ]
+    },
+    {
+      "name": "quick-ninja-release",
+      "displayName": "Configure + Build Release (Ninja)",
+      "steps": [
+        {"type": "configure", "name": "ninja-release"},
+        {"type": "build", "name": "ninja-release"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug cuda_gravbox (VS Release)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/vs/vs2022-release/Release/cuda_gravbox.exe",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/build/vs/vs2022-release/Release",
+      "environment": [],
+      "console": "integratedTerminal",
+      "preLaunchTask": "CMake: Build (VS Release)"
+    },
+    {
+      "name": "Run cuda_gravbox (VS Release)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/vs/vs2022-release/Release/cuda_gravbox.exe",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/build/vs/vs2022-release/Release",
+      "environment": [],
+      "console": "integratedTerminal",
+      "preLaunchTask": "CMake: Build (VS Release)"
+    },
+    {
+      "name": "Debug cuda_gravbox (VS Debug)",
+      "type": "cppvsdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/vs/vs2022-debug/Debug/cuda_gravbox.exe",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/build/vs/vs2022-debug/Debug",
+      "environment": [],
+      "console": "integratedTerminal",
+      "preLaunchTask": "CMake: Build (VS Debug)"
+    }
+  ]
+}

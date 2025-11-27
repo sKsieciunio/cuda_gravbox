@@ -1,5 +1,74 @@
 # Symulacja Grawitacji i Kolizji Cząsteczek w CUDA
 
+## Budowanie (CMake)
+
+Wymagania:
+
+- NVIDIA CUDA Toolkit (wspierana wersja zgodna z Twoją kartą)
+- Visual Studio 2022 (C++ Desktop) lub Build Tools
+- Sterownik GPU z obsługą CUDA
+
+Kroki (PowerShell):
+
+```
+mkdir build
+cd build
+cmake -G "Visual Studio 17 2022" -A x64 ..
+cmake --build . --config Release
+```
+
+Plik wykonywalny: `build/Release/cuda_gravbox.exe`. CMake automatycznie skopiuje `glfw3.dll` obok pliku EXE. GLEW linkowany jest statycznie, nie wymaga DLL.
+
+Uwaga: jeśli masz wiele wersji CUDA lub niestandardową instalację, ustaw zmienną środowiskową `CUDA_PATH` lub wskaż toolchain poprzez `-DCUDAToolkit_ROOT=...`.
+
+### CMake Presets (szybsza konfiguracja)
+
+Repo zawiera plik `CMakePresets.json` upraszczający konfigurację i budowanie.
+
+Konfiguracja (Visual Studio 2022):
+
+```
+cmake --preset vs2022-release
+cmake --build --preset vs-release
+```
+
+Konfiguracja (Ninja):
+
+```
+cmake --preset ninja-release
+cmake --build --preset ninja-release
+```
+
+Debug wariant (Ninja):
+
+```
+cmake --preset ninja-debug
+cmake --build --preset ninja-debug
+```
+
+Szybka konfiguracja + build jednym poleceniem (workflow):
+
+```
+cmake --workflow --preset quick-release          # VS Release
+cmake --workflow --preset quick-ninja-release     # Ninja Release
+```
+
+Czyszczenie artefaktów kompilacji (bez usuwania cache konfiguracji):
+
+```
+cmake --build --preset vs-clean
+cmake --build --preset ninja-clean
+```
+
+Struktura katalogów build:
+
+- Visual Studio: `build/vs/<preset>/` (multi-config: Debug/Release w jednym drzewie)
+- Ninja: `build/ninja/<preset>/` (oddzielny katalog na preset + wybrany typ budowy)
+
+Presety zmieniają automatycznie standard C++/CUDA i generują `compile_commands.json` (przydatne dla narzędzi analizujących kod).
+
+Jeśli chcesz zmienić architekturę GPU, edytuj `CMAKE_CUDA_ARCHITECTURES` w odpowiednim preset (`native` można zastąpić np. `75;86`).
+
 ## Wprowadzenie
 
 Projekt implementuje symulację grawitacji i kolizji między cząsteczkami w czasie rzeczywistym przy użyciu CUDA. Symulacja wykorzystuje integrację Verleta oraz przestrzenne hashowanie (spatial grid) do efektywnej detekcji kolizji.

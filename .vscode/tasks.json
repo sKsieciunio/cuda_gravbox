@@ -1,0 +1,78 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CMake: Configure (VS Release)",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--preset", "vs2022-release"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "CMake: Build (VS Release)",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--build", ".", "--config", "Release"],
+      "options": {
+        "cwd": "${workspaceFolder}/build/vs/vs2022-release"
+      },
+      "problemMatcher": ["$msCompile"],
+      "dependsOn": "CMake: Configure (VS Release)",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "label": "Run: cuda_gravbox (VS Release)",
+      "type": "shell",
+      "command": "${workspaceFolder}/build/vs/vs2022-release/Release/cuda_gravbox.exe",
+      "dependsOn": "CMake: Build (VS Release)",
+      "options": {
+        "cwd": "${workspaceFolder}/build/vs/vs2022-release/Release"
+      }
+    },
+    {
+      "label": "CMake: Clean (VS Release)",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--build", ".", "--target", "clean", "--config", "Release"],
+      "options": {
+        "cwd": "${workspaceFolder}/build/vs/vs2022-release"
+      }
+    },
+    {
+      "label": "CMake: Configure (VS Debug)",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--preset", "vs2022-debug"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
+    },
+    {
+      "label": "CMake: Build (VS Debug)",
+      "type": "shell",
+      "command": "cmake",
+      "args": ["--build", ".", "--config", "Debug"],
+      "options": {
+        "cwd": "${workspaceFolder}/build/vs/vs2022-debug"
+      },
+      "problemMatcher": ["$msCompile"],
+      "dependsOn": "CMake: Configure (VS Debug)",
+      "group": "build"
+    }
+  ],
+  "compounds": [
+    {
+      "label": "Build & Run (VS Release)",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "CMake: Build (VS Release)",
+        "Run: cuda_gravbox (VS Release)"
+      ]
+    }
+  ]
+}

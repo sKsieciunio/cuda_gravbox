@@ -146,14 +146,7 @@ void ParticleSystem::unmapResourcesCPU() {
     // Note: We do not store VBO ids here; caller will bind as needed. We'll just unbind for safety.
 }
 
-void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, float particleRadius) {
-    int cols = (int)std::sqrt((float)m_particleCount * windowWidth / (float)windowHeight);
-    int rows = (m_particleCount + cols - 1) / cols;
-
-    float spacingX = windowWidth / (float)(cols + 1);
-    float spacingY = windowHeight / (float)(rows + 1);
-    float jitterAmount = std::min(spacingX, spacingY) * 0.3f;
-
+void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, float particleRadius, SpawnMode mode) {
     std::vector<float> h_pos_x(m_particleCount);
     std::vector<float> h_pos_y(m_particleCount);
     std::vector<float> h_prev_x(m_particleCount);
@@ -162,27 +155,128 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, f
     std::vector<float> h_vel_y(m_particleCount);
     std::vector<float> h_radius(m_particleCount);
 
-    for (int i = 0; i < m_particleCount; i++) {
-        int row = i / cols;
-        int col = i % cols;
+    if (mode == SpawnMode::UNIFORM) {
+        int cols = (int)std::sqrt((float)m_particleCount * windowWidth / (float)windowHeight);
+        int rows = (m_particleCount + cols - 1) / cols;
 
-        h_pos_x[i] = spacingX * (col + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
-        h_pos_y[i] = spacingY * (row + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
+        float spacingX = windowWidth / (float)(cols + 1);
+        float spacingY = windowHeight / (float)(rows + 1);
+        float jitterAmount = std::min(spacingX, spacingY) * 0.3f;
+
+        for (int i = 0; i < m_particleCount; i++) {
+            int row = i / cols;
+            int col = i % cols;
+
+            h_pos_x[i] = spacingX * (col + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
+            h_pos_y[i] = spacingY * (row + 1) + ((float)rand() / RAND_MAX - 0.5f) * jitterAmount;
+            
+            // Initial velocities
+            float init_vel_x = ((float)rand() / RAND_MAX - 0.5f) * 200.0f;
+            float init_vel_y = ((float)rand() / RAND_MAX - 0.5f) * 200.0f;
+            
+            h_vel_x[i] = init_vel_x;
+            h_vel_y[i] = init_vel_y;
+        }
+    }
+    else if (mode == SpawnMode::DISK_CORNER || mode == SpawnMode::DISK_CENTER_EXPLOSION) {
+        float spawnCenterX, spawnCenterY;
+        
+        if (mode == SpawnMode::DISK_CORNER) {
+            spawnCenterX = windowWidth * 0.15f;
+            spawnCenterY = windowHeight * 0.8f;
+        } else {
+            spawnCenterX = windowWidth * 0.5f;
+            spawnCenterY = windowHeight * 0.5f;
+        }
+        
+        float spacing = particleRadius * 2.0f + 0.1f; // Minimal gap
+
+        struct Point { float x, y, distSq; };
+        std::vector<Point> candidates;
+        
+        // Generate candidates in a large enough grid around center
+        int gridSize = (int)ceil(sqrt(m_particleCount)) * 2 + 5;
+        
+        for (int y = -gridSize; y <= gridSize; y++) {
+            for (int x = -gridSize; x <= gridSize; x++) {
+                float px = spawnCenterX + x * spacing;
+                float py = spawnCenterY + y * spacing;
+                
+                // Keep within bounds
+                if (px < particleRadius || px > windowWidth - particleRadius ||
+                    py < particleRadius || py > windowHeight - particleRadius)
+                    continue;
+                    
+                float dx = px - spawnCenterX;
+                float dy = py - spawnCenterY;
+                candidates.push_back({px, py, dx*dx + dy*dy});
+            }
+        }
+        
+        // Sort by distance from center to form a disk
+        std::sort(candidates.begin(), candidates.end(), [](const Point& a, const Point& b) {
+            return a.distSq < b.distSq;
+        });
+
+        for (int i = 0; i < m_particleCount; i++) {
+            float px, py;
+            if (i < candidates.size()) {
+                px = candidates[i].x;
+                py = candidates[i].y;
+            } else {
+                // Fallback: random position if grid wasn't big enough
+                px = ((float)rand() / RAND_MAX) * windowWidth;
+                py = ((float)rand() / RAND_MAX) * windowHeight;
+            }
+
+            h_pos_x[i] = px;
+            h_pos_y[i] = py;
+
+            float init_vel_x = 0.0f;
+            float init_vel_y = 0.0f;
+
+            if (mode == SpawnMode::DISK_CORNER) {
+                // Move right to hit the wall
+                init_vel_x = 800.0f; 
+                init_vel_y = 0.0f;
+                
+                // Add small randomness
+                init_vel_x += ((float)rand() / RAND_MAX - 0.5f) * 20.0f;
+                init_vel_y += ((float)rand() / RAND_MAX - 0.5f) * 20.0f;
+            } else {
+                // DISK_CENTER_EXPLOSION
+                float dx = px - spawnCenterX;
+                float dy = py - spawnCenterY;
+                float dist = sqrt(dx*dx + dy*dy);
+                
+                if (dist > 0.001f) {
+                    // Velocity outwards, magnitude increases with distance
+                    float speed = 100.0f + dist * 5.0f; 
+                    init_vel_x = (dx / dist) * speed;
+                    init_vel_y = (dy / dist) * speed;
+                }
+
+                // Add small randomness
+                init_vel_x += ((float)rand() / RAND_MAX - 0.5f) * 20.0f;
+                init_vel_y += ((float)rand() / RAND_MAX - 0.5f) * 20.0f;
+            }
+            
+            h_vel_x[i] = init_vel_x;
+            h_vel_y[i] = init_vel_y;
+        }
+    }
+
+    // Common post-processing
+    for (int i = 0; i < m_particleCount; i++) {
+        // Clamp positions
         h_pos_x[i] = std::max(particleRadius, 
                               std::min((float)windowWidth - particleRadius, h_pos_x[i]));
         h_pos_y[i] = std::max(particleRadius, 
                               std::min((float)windowHeight - particleRadius, h_pos_y[i]));
 
-        // Initial velocities (pixels per second, NOT multiplied by dt)
-        float init_vel_x = ((float)rand() / RAND_MAX - 0.5f) * 200.0f;
-        float init_vel_y = ((float)rand() / RAND_MAX - 0.5f) * 200.0f;
-        
-        h_vel_x[i] = init_vel_x;
-        h_vel_y[i] = init_vel_y;
-
         // For Verlet integration: prev_pos = pos - velocity * dt
-        h_prev_x[i] = h_pos_x[i] - init_vel_x * simParams.dt;
-        h_prev_y[i] = h_pos_y[i] - init_vel_y * simParams.dt;
+        h_prev_x[i] = h_pos_x[i] - h_vel_x[i] * simParams.dt;
+        h_prev_y[i] = h_pos_y[i] - h_vel_y[i] * simParams.dt;
 
         h_radius[i] = particleRadius;
     }
@@ -214,15 +308,15 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, f
     }
 }
 
-void ParticleSystem::reset(int windowWidth, int windowHeight, float particleRadius, Renderer& renderer) {
+void ParticleSystem::reset(int windowWidth, int windowHeight, float particleRadius, Renderer& renderer, SpawnMode mode) {
     if (m_useCUDA) {
         mapResourcesCUDA();
-        initializeParticleData(windowWidth, windowHeight, particleRadius);
+        initializeParticleData(windowWidth, windowHeight, particleRadius, mode);
         unmapResourcesCUDA();
     } else {
         // Map CPU GL buffers, initialize, then unmap
         mapResourcesCPU(renderer);
-        initializeParticleData(windowWidth, windowHeight, particleRadius);
+        initializeParticleData(windowWidth, windowHeight, particleRadius, mode);
         // Unmap all buffers
         glBindBuffer(GL_ARRAY_BUFFER, renderer.getVBO_PosX()); glUnmapBuffer(GL_ARRAY_BUFFER);
         glBindBuffer(GL_ARRAY_BUFFER, renderer.getVBO_PosY()); glUnmapBuffer(GL_ARRAY_BUFFER);

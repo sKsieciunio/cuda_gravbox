@@ -40,6 +40,7 @@ Application::Application()
     , m_collisionIterations(Config::COLLISION_ITERATIONS)
     , m_cudaBlockSize(Config::CUDA_BLOCK_SIZE)
     , m_useCUDA(true)
+    , m_spawnMode(SpawnMode::DISK_CORNER)
 {
     // Initialize simulation parameters
     m_simParams.gravity = Config::DEFAULT_GRAVITY;
@@ -76,7 +77,7 @@ bool Application::initialize() {
         }
         
         // Initialize particles
-        m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius, m_renderer);
+        m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius, m_renderer, m_spawnMode);
         
         initializeImGui();
         setupCallbacks();
@@ -229,6 +230,13 @@ void Application::renderUI() {
     ImGui::Separator();
     ImGui::Text("Particle Configuration");
     
+    static int spawnMode = (int)m_spawnMode;
+    const char* spawnModes[] = { "Uniform", "Disk Corner", "Disk Center Explosion" };
+    if (ImGui::Combo("Spawn Mode", &spawnMode, spawnModes, IM_ARRAYSIZE(spawnModes))) {
+        m_spawnMode = (SpawnMode)spawnMode;
+        resetParticles();
+    }
+
     static int newParticleCount = m_particleCount;
     static float newParticleRadius = m_particleRadius;
     
@@ -269,7 +277,7 @@ void Application::renderUI() {
 }
 
 void Application::resetParticles() {
-    m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius, m_renderer);
+    m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius, m_renderer, m_spawnMode);
 }
 
 void Application::reinitializeSimulation(int newParticleCount, float newParticleRadius) {
@@ -306,7 +314,7 @@ void Application::reinitializeSimulation(int newParticleCount, float newParticle
     if (m_useCUDA) m_physicsEngine.initialize(); else m_cpuEngine.initialize();
     
     // Reset particles with new radius
-    m_particleSystem.reset(m_windowWidth, m_windowHeight, newParticleRadius, m_renderer);
+    m_particleSystem.reset(m_windowWidth, m_windowHeight, newParticleRadius, m_renderer, m_spawnMode);
     
     // Update grid parameters
     m_gridParams.grid_width = (int)(m_windowWidth / gridCellSize) + 1;

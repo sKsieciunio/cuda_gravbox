@@ -5,6 +5,12 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
+enum class SpawnMode {
+    UNIFORM,
+    DISK_CORNER,
+    DISK_CENTER_EXPLOSION
+};
+
 class ParticleSystem {
 public:
     ParticleSystem(int particleCount, int windowWidth, int windowHeight);
@@ -13,7 +19,7 @@ public:
     void initialize(Renderer& renderer, bool useCUDA = true);
     void cleanup();
     
-    void reset(int windowWidth, int windowHeight, float particleRadius, Renderer& renderer);
+    void reset(int windowWidth, int windowHeight, float particleRadius, Renderer& renderer, SpawnMode mode = SpawnMode::DISK_CORNER);
     
     void mapResourcesCUDA();
     void unmapResourcesCUDA();
@@ -43,5 +49,5 @@ private:
     cudaGraphicsResource* m_cuda_res_radius;
     
     void registerGLBuffers(Renderer& renderer);
-    void initializeParticleData(int windowWidth, int windowHeight, float particleRadius);
+    void initializeParticleData(int windowWidth, int windowHeight, float particleRadius, SpawnMode mode);
 };

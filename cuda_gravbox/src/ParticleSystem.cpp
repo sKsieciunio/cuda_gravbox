@@ -265,6 +265,86 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, f
             h_vel_y[i] = init_vel_y;
         }
     }
+    else if (mode == SpawnMode::DISK_VS_WALL) {
+        // Split particles: 40% for disk, 60% for wall
+        int diskCount = (int)(m_particleCount * 0.4f);
+        int wallCount = m_particleCount - diskCount;
+        
+        // Disk parameters
+        float diskCenterX = windowWidth * 0.2f;
+        float diskCenterY = windowHeight * 0.5f;
+        float diskSpacing = particleRadius * 2.0f + 0.1f;
+        
+        // Wall parameters
+        float wallStartX = windowWidth * 0.7f;
+        float wallWidth = windowWidth * 0.1f;
+        float wallSpacing = particleRadius * 2.0f + 0.1f;
+        
+        // Generate disk candidates
+        struct Point { float x, y, distSq; };
+        std::vector<Point> diskCandidates;
+        int gridSize = (int)ceil(sqrt(diskCount)) * 2 + 5;
+        
+        for (int y = -gridSize; y <= gridSize; y++) {
+            for (int x = -gridSize; x <= gridSize; x++) {
+                float dx = x * diskSpacing;
+                float dy = y * diskSpacing;
+                diskCandidates.push_back({dx, dy, dx*dx + dy*dy});
+            }
+        }
+        std::sort(diskCandidates.begin(), diskCandidates.end(), [](const Point& a, const Point& b) {
+            return a.distSq < b.distSq;
+        });
+        
+        // Initialize particles
+        for (int i = 0; i < m_particleCount; i++) {
+            float px, py, vx, vy;
+            
+            if (i < diskCount) {
+                // Disk particle
+                float offsetX = 0.0f, offsetY = 0.0f;
+                if (i < diskCandidates.size()) {
+                    offsetX = diskCandidates[i].x;
+                    offsetY = diskCandidates[i].y;
+                }
+                px = diskCenterX + offsetX;
+                py = diskCenterY + offsetY;
+                
+                vx = 500.0f; // Move right
+                vy = 0.0f;
+                
+                // Add randomness
+                vx += ((float)rand() / RAND_MAX - 0.5f) * 20.0f;
+                vy += ((float)rand() / RAND_MAX - 0.5f) * 20.0f;
+            } else {
+                // Wall particle
+                int wallIdx = i - diskCount;
+                int cols = (int)(wallWidth / wallSpacing);
+                if (cols < 1) cols = 1;
+                
+                int col = wallIdx % cols;
+                int row = wallIdx / cols;
+                
+                px = wallStartX + col * wallSpacing;
+                py = particleRadius + row * wallSpacing; // Start from bottom
+                
+                // Center vertically if wall is shorter than window
+                // But let's just fill from bottom up for stability or center it?
+                // Let's center it vertically
+                float wallHeight = (wallCount / cols) * wallSpacing;
+                float startY = (windowHeight - wallHeight) / 2.0f;
+                py = startY + row * wallSpacing;
+
+                vx = 0.0f;
+                vy = 0.0f;
+            }
+            
+            h_pos_x[i] = px;
+            h_pos_y[i] = py;
+            h_vel_x[i] = vx;
+            h_vel_y[i] = vy;
+        }
+    }
 
     // Common post-processing
     for (int i = 0; i < m_particleCount; i++) {

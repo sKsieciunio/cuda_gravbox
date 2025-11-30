@@ -299,7 +299,7 @@ void Application::renderUI() {
     ImGui::Text("Particle Configuration");
     
     static int spawnMode = (int)m_spawnMode;
-    const char* spawnModes[] = { "Uniform", "Disk Corner", "Disk Center Explosion" };
+    const char* spawnModes[] = { "Uniform", "Disk Corner", "Disk Center Explosion", "Disk vs Wall" };
     if (ImGui::Combo("Spawn Mode", &spawnMode, spawnModes, IM_ARRAYSIZE(spawnModes))) {
         m_spawnMode = (SpawnMode)spawnMode;
         resetParticles();

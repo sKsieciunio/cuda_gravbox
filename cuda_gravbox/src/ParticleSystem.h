@@ -8,7 +8,8 @@
 enum class SpawnMode {
     UNIFORM,
     DISK_CORNER,
-    DISK_CENTER_EXPLOSION
+    DISK_CENTER_EXPLOSION,
+    DISK_VS_WALL
 };
 
 class ParticleSystem {

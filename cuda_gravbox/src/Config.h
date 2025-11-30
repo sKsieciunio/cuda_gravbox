@@ -19,6 +19,7 @@ namespace Config
     constexpr float DEFAULT_DT = 0.0006f;       // Time step
     constexpr float DEFAULT_DAMPENING = 0.6f;   // Energy loss on collision
     constexpr float DEFAULT_RESTITUTION = 0.6f; // Coefficient of restitution
+    constexpr float DEFAULT_MAX_SPEED = 1500.0f; // Maximum particle speed
 
     // Grid configuration
     constexpr float GRID_CELL_SIZE = 2.0f * PARTICLE_RADIUS;

@@ -48,6 +48,15 @@ __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, 
     // Apply acceleration (gravity)
     vel_y += params.gravity * params.dt;
 
+    // Clamp velocity
+    float speed_sq = vel_x * vel_x + vel_y * vel_y;
+    if (speed_sq > params.max_speed * params.max_speed)
+    {
+        float scale = params.max_speed / sqrtf(speed_sq);
+        vel_x *= scale;
+        vel_y *= scale;
+    }
+
     // Store current position as previous
     particles.prev_position_x[idx] = pos_x;
     particles.prev_position_y[idx] = pos_y;

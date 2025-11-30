@@ -55,6 +55,14 @@ void CpuPhysicsEngine::updateParticles(ParticlesSoA& particles, const Simulation
         float vel_y = (pos_y - prev_pos_y) / params.dt;
         vel_y += params.gravity * params.dt;
 
+        // Clamp velocity
+        float speed_sq = vel_x * vel_x + vel_y * vel_y;
+        if (speed_sq > params.max_speed * params.max_speed) {
+            float scale = params.max_speed / std::sqrt(speed_sq);
+            vel_x *= scale;
+            vel_y *= scale;
+        }
+
         particles.prev_position_x[idx] = pos_x;
         particles.prev_position_y[idx] = pos_y;
 

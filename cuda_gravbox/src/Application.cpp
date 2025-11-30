@@ -48,6 +48,7 @@ Application::Application()
     m_simParams.dt = Config::DEFAULT_DT;
     m_simParams.dampening = Config::DEFAULT_DAMPENING;
     m_simParams.restitution = Config::DEFAULT_RESTITUTION;
+    m_simParams.max_speed = Config::DEFAULT_MAX_SPEED;
     m_simParams.bounds_width = (float)m_windowWidth;
     m_simParams.bounds_height = (float)m_windowHeight;
     m_simParams.collision_iterations = m_collisionIterations;
@@ -320,6 +321,7 @@ void Application::renderUI() {
     ImGui::SliderFloat("Gravity", &m_simParams.gravity, -5000.0f, 0.0f);
     ImGui::SliderFloat("Dampening", &m_simParams.dampening, 0.0f, 1.0f);
     ImGui::SliderFloat("Restitution", &m_simParams.restitution, 0.0f, 1.0f);
+    ImGui::SliderFloat("Max Speed", &m_simParams.max_speed, 100.0f, 5000.0f);
     ImGui::SliderFloat("Simulation dt", &m_simParams.dt, 0.0001f, 0.3f, 
                        "%.4f", ImGuiSliderFlags_Logarithmic);
     

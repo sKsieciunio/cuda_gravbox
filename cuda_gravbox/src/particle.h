@@ -32,6 +32,7 @@ struct SimulationParams {
 	float bounds_width;  // Simulation bounds width
 	float bounds_height; // Simulation bounds height
 	float restitution;  // Coefficient of restitution for collisions
+	float max_speed;    // Maximum speed of particles
 	int collision_iterations; // Number of collision constraint iterations
 	int cuda_block_size;      // CUDA block size for kernel launches
 };

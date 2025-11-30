@@ -308,6 +308,40 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, f
     }
 }
 
+extern void runShiftParticles(ParticlesSoA d_particles, int numParticles, float shiftX, float shiftY, int blockSize);
+
+void ParticleSystem::shiftParticles(float dx, float dy, Renderer* renderer) {
+    if (m_useCUDA) {
+        mapResourcesCUDA();
+        runShiftParticles(m_particles, m_particleCount, dx, dy, 256);
+        unmapResourcesCUDA();
+    } else {
+        bool mappedLocally = false;
+        if (renderer) {
+            mapResourcesCPU(*renderer);
+            mappedLocally = true;
+        }
+        
+        for (int i = 0; i < m_particleCount; i++) {
+            m_particles.position_x[i] += dx;
+            m_particles.position_y[i] += dy;
+            m_particles.prev_position_x[i] += dx;
+            m_particles.prev_position_y[i] += dy;
+        }
+        
+        if (mappedLocally) {
+            unmapResourcesCPU();
+            // Unbind buffers
+            glBindBuffer(GL_ARRAY_BUFFER, renderer->getVBO_PosX()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, renderer->getVBO_PosY()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, renderer->getVBO_VelX()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, renderer->getVBO_VelY()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, renderer->getVBO_Radius()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
+    }
+}
+
 void ParticleSystem::reset(int windowWidth, int windowHeight, float particleRadius, Renderer& renderer, SpawnMode mode) {
     if (m_useCUDA) {
         mapResourcesCUDA();

@@ -47,6 +47,8 @@ private:
     // Window management
     int m_windowWidth;
     int m_windowHeight;
+    int m_windowPosX;
+    int m_windowPosY;
     
     // Methods
     void initializeGLFW();
@@ -56,6 +58,7 @@ private:
     
     void handleInput();
     void update();
+    void checkForWindowResize();
     void renderFrame();
     void renderUI();
     

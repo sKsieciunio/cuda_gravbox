@@ -9,6 +9,7 @@ public:
     
     void initialize();
     void cleanup();
+    void resize(int gridWidth, int gridHeight);
     
     void simulate(ParticlesSoA& particles, const SimulationParams& simParams, const GridParams& gridParams);
     

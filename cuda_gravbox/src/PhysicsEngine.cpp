@@ -40,6 +40,8 @@ PhysicsEngine::~PhysicsEngine() {
 }
 
 void PhysicsEngine::initialize() {
+    cleanup(); // Ensure clean state
+
     CUDA_CHECK(cudaMalloc(&d_particleGridIndex, m_particleCount * sizeof(int)));
     CUDA_CHECK(cudaMalloc(&d_particleIndices, m_particleCount * sizeof(int)));
     CUDA_CHECK(cudaMalloc(&d_gridCellStart, m_numCells * sizeof(int)));
@@ -64,6 +66,19 @@ void PhysicsEngine::cleanup() {
     d_particleIndices = nullptr;
     d_gridCellStart = nullptr;
     d_gridCellEnd = nullptr;
+}
+
+void PhysicsEngine::resize(int gridWidth, int gridHeight) {
+    int newNumCells = gridWidth * gridHeight;
+    if (newNumCells == m_numCells) return;
+
+    if (d_gridCellStart) CUDA_CHECK(cudaFree(d_gridCellStart));
+    if (d_gridCellEnd) CUDA_CHECK(cudaFree(d_gridCellEnd));
+
+    m_numCells = newNumCells;
+
+    CUDA_CHECK(cudaMalloc(&d_gridCellStart, m_numCells * sizeof(int)));
+    CUDA_CHECK(cudaMalloc(&d_gridCellEnd, m_numCells * sizeof(int)));
 }
 
 void PhysicsEngine::simulate(ParticlesSoA& particles, 

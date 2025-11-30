@@ -15,6 +15,8 @@ CpuPhysicsEngine::CpuPhysicsEngine(int particleCount, int gridWidth, int gridHei
 CpuPhysicsEngine::~CpuPhysicsEngine() { cleanup(); }
 
 void CpuPhysicsEngine::initialize() {
+    cleanup(); // Ensure clean state
+
     m_particleGridIndex = new int[m_particleCount];
     m_particleIndices = new int[m_particleCount];
     m_gridCellStart = new int[m_numCells];
@@ -27,6 +29,18 @@ void CpuPhysicsEngine::cleanup() {
     delete[] m_particleIndices; m_particleIndices = nullptr;
     delete[] m_gridCellStart; m_gridCellStart = nullptr;
     delete[] m_gridCellEnd; m_gridCellEnd = nullptr;
+}
+
+void CpuPhysicsEngine::resize(int gridWidth, int gridHeight) {
+    int newNumCells = gridWidth * gridHeight;
+    if (newNumCells == m_numCells) return;
+
+    delete[] m_gridCellStart;
+    delete[] m_gridCellEnd;
+
+    m_numCells = newNumCells;
+    m_gridCellStart = new int[m_numCells];
+    m_gridCellEnd = new int[m_numCells];
 }
 
 void CpuPhysicsEngine::updateParticles(ParticlesSoA& particles, const SimulationParams& params) {

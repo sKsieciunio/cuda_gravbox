@@ -105,6 +105,8 @@ void Application::initializeGLFW() {
         throw std::runtime_error("Failed to create GLFW window");
     }
     
+    glfwGetWindowPos(m_window, &m_windowPosX, &m_windowPosY);
+
     glfwMakeContextCurrent(m_window);
     glfwSetWindowSizeLimits(m_window, m_windowWidth, m_windowHeight, 
                             GLFW_DONT_CARE, GLFW_DONT_CARE);
@@ -129,21 +131,84 @@ void Application::initializeImGui() {
 void Application::setupCallbacks() {
     glfwSetWindowUserPointer(m_window, this);
     
-    glfwSetWindowSizeCallback(m_window, windowSizeCallback);
+    // glfwSetWindowSizeCallback(m_window, windowSizeCallback); // Handled in update()
     glfwSetScrollCallback(m_window, scrollCallback);
 }
 
 void Application::windowSizeCallback(GLFWwindow* window, int width, int height) {
-    Application* app = static_cast<Application*>(glfwGetWindowUserPointer(window));
+    // Deprecated, logic moved to checkForWindowResize
+}
+
+void Application::checkForWindowResize() {
+    int width, height;
+    glfwGetWindowSize(m_window, &width, &height);
     
-    glViewport(0, 0, width, height);
-    app->m_windowWidth = width;
-    app->m_windowHeight = height;
+    int x, y;
+    glfwGetWindowPos(m_window, &x, &y);
     
-    app->m_camera.setWindowSize(width, height);
-    app->m_simParams.bounds_width = (float)width;
-    app->m_simParams.bounds_height = (float)height;
-    app->updateGridParams();
+    bool sizeChanged = (width != m_windowWidth || height != m_windowHeight);
+    bool posChanged = (x != m_windowPosX || y != m_windowPosY);
+    
+    if (sizeChanged) {
+        // Calculate shift based on position change relative to previous frame
+        // If window expanded left, x decreases. shiftX = oldX - newX > 0.
+        // If window expanded up, y decreases. shiftY = oldY - newY > 0 (assuming Y up for particles).
+        // Wait, OpenGL Y is up. Screen Y is down.
+        // If window moves up (y decreases), bottom-left corner moves up?
+        // Window Top-Left = (x, y). Height = h.
+        // Window Bottom-Left Y (screen) = y + h.
+        // If we drag top edge up: y decreases, h increases. y+h stays same.
+        // Bottom-Left Y (screen) stays same.
+        // OpenGL origin stays same relative to screen.
+        // Particles stay same.
+        // shiftY should be 0.
+        // Let's check: oldY - newY > 0. This would shift particles up. Incorrect.
+        
+        // We need to track the Bottom-Left corner position.
+        // BL_y = y + height.
+        // shiftY = (new_y + new_h) - (old_y + old_h).
+        // If BL_y increases (moves down screen), origin moves down.
+        // Particles move down. We need to shift them UP to keep them in place.
+        // So shiftY = (new_y + new_h) - (old_y + old_h).
+        // Wait, if origin moves down, particles drawn at Y=100 are now lower on screen.
+        // To keep them at same screen height, we need to increase their Y coord.
+        // So shiftY should be positive.
+        // Correct.
+        
+        // For X:
+        // BL_x = x.
+        // If BL_x decreases (moves left), origin moves left.
+        // Particles move left. We need to shift them RIGHT (increase X).
+        // So shiftX = old_x - new_x.
+        
+        float shiftX = (float)(m_windowPosX - x);
+        float shiftY = (float)((y + height) - (m_windowPosY + m_windowHeight));
+        
+        if (std::abs(shiftX) > 0.0f || std::abs(shiftY) > 0.0f) {
+            m_particleSystem.shiftParticles(shiftX, shiftY, &m_renderer);
+        }
+        
+        // Update state
+        m_windowWidth = width;
+        m_windowHeight = height;
+        m_windowPosX = x;
+        m_windowPosY = y;
+        
+        // Update viewport and camera
+        glViewport(0, 0, width, height);
+        m_camera.setWindowSize(width, height);
+        m_simParams.bounds_width = (float)width;
+        m_simParams.bounds_height = (float)height;
+        updateGridParams();
+
+        // Resize physics engines
+        m_physicsEngine.resize(m_gridParams.grid_width, m_gridParams.grid_height);
+        m_cpuEngine.resize(m_gridParams.grid_width, m_gridParams.grid_height);
+        
+    } else if (posChanged) {
+        m_windowPosX = x;
+        m_windowPosY = y;
+    }
 }
 
 void Application::scrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
@@ -173,6 +238,8 @@ void Application::handleInput() {
 }
 
 void Application::update() {
+    checkForWindowResize();
+
     if (!m_paused) {
         simParams = m_simParams; // Update global params
         if (m_useCUDA) {
@@ -203,14 +270,14 @@ void Application::renderUI() {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    ImGui::Begin("Settings");
+    ImGui::Begin("Menu");
     ImGui::Text("Frame Time: %.3f ms/frame (%.1f FPS)", 
                 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::Text("Particles: %d", m_particleCount);
     ImGui::Separator();
     ImGui::Text("Backend");
     static int backend = 0; // 0 = CUDA, 1 = CPU
-    const char* backends[] = { "CUDA", "CPU" };
+    const char* backends[] = { "GPU (CUDA)", "CPU" };
     if (ImGui::Combo("Physics Backend", &backend, backends, IM_ARRAYSIZE(backends))) {
         bool newUseCUDA = (backend == 0);
         if (newUseCUDA != m_useCUDA) {

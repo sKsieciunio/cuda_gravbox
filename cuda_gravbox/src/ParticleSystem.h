@@ -20,6 +20,7 @@ public:
     void cleanup();
     
     void reset(int windowWidth, int windowHeight, float particleRadius, Renderer& renderer, SpawnMode mode = SpawnMode::DISK_CORNER);
+    void shiftParticles(float dx, float dy, Renderer* renderer = nullptr);
     
     void mapResourcesCUDA();
     void unmapResourcesCUDA();

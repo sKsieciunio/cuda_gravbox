@@ -9,6 +9,25 @@
 #include <thrust/execution_policy.h>
 #include <thrust/sequence.h>
 
+__global__ void shiftParticlesKernel(ParticlesSoA particles, int numParticles, float shiftX, float shiftY)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if (idx >= numParticles)
+        return;
+
+    particles.position_x[idx] += shiftX;
+    particles.position_y[idx] += shiftY;
+    particles.prev_position_x[idx] += shiftX;
+    particles.prev_position_y[idx] += shiftY;
+}
+
+void runShiftParticles(ParticlesSoA d_particles, int numParticles, float shiftX, float shiftY, int blockSize)
+{
+    int numBlocks = (numParticles + blockSize - 1) / blockSize;
+    shiftParticlesKernel<<<numBlocks, blockSize>>>(d_particles, numParticles, shiftX, shiftY);
+    cudaDeviceSynchronize();
+}
+
 // CUDA kernel for updating particle physics using Verlet integration
 __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, SimulationParams params)
 {

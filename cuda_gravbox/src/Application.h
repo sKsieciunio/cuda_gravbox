@@ -6,6 +6,7 @@
 #include "Renderer.h"
 #include "ParticleSystem.h"
 #include "PhysicsEngine.h"
+#include "CpuPhysicsEngine.h"
 #include "particle.h"
 
 class Application {
@@ -23,17 +24,23 @@ private:
     Camera m_camera;
     Renderer m_renderer;
     ParticleSystem m_particleSystem;
-    PhysicsEngine m_physicsEngine;
+    PhysicsEngine m_physicsEngine; // CUDA engine
+    CpuPhysicsEngine m_cpuEngine;  // CPU engine
     
     // Simulation state
     SimulationParams m_simParams;
     GridParams m_gridParams;
     bool m_paused;
+    bool m_useCUDA;
     float m_velocityToHueRange;
     
     // Runtime particle configuration
     int m_particleCount;
     float m_particleRadius;
+    
+    // Runtime physics configuration
+    int m_collisionIterations;
+    int m_cudaBlockSize;
     
     // Window management
     int m_windowWidth;

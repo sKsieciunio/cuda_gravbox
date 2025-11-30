@@ -222,7 +222,7 @@ void runPhysicsSimulation(
     const GridParams &gridParams,
     const SimulationParams &simParams)
 {
-    int blockSize = Config::CUDA_BLOCK_SIZE;
+    int blockSize = simParams.cuda_block_size;
     int numBlocks = (numParticles + blockSize - 1) / blockSize;
     int numCells = gridParams.grid_width * gridParams.grid_height;
 
@@ -234,7 +234,7 @@ void runPhysicsSimulation(
         d_particles, numParticles, simParams);
 
     // Multiple iterations for constraint satisfaction (collisions only)
-    for (int iter = 0; iter < Config::COLLISION_ITERATIONS; iter++)
+    for (int iter = 0; iter < simParams.collision_iterations; iter++)
     {
         // Clear grid
         cudaMemset(d_gridCellStart, -1, numCells * sizeof(int));

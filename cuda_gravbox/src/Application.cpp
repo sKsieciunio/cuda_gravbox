@@ -28,12 +28,18 @@ Application::Application()
     , m_physicsEngine(Config::PARTICLE_COUNT, 
                       (int)(Config::DEFAULT_WINDOW_WIDTH / Config::GRID_CELL_SIZE) + 1,
                       (int)(Config::DEFAULT_WINDOW_HEIGHT / Config::GRID_CELL_SIZE) + 1)
+    , m_cpuEngine(Config::PARTICLE_COUNT,
+                  (int)(Config::DEFAULT_WINDOW_WIDTH / Config::GRID_CELL_SIZE) + 1,
+                  (int)(Config::DEFAULT_WINDOW_HEIGHT / Config::GRID_CELL_SIZE) + 1)
     , m_paused(true)
     , m_velocityToHueRange(Config::DEFAULT_VELOCITY_TO_HUE_RANGE)
     , m_particleCount(Config::PARTICLE_COUNT)
     , m_particleRadius(Config::PARTICLE_RADIUS)
     , m_windowWidth(Config::DEFAULT_WINDOW_WIDTH)
     , m_windowHeight(Config::DEFAULT_WINDOW_HEIGHT)
+    , m_collisionIterations(Config::COLLISION_ITERATIONS)
+    , m_cudaBlockSize(Config::CUDA_BLOCK_SIZE)
+    , m_useCUDA(true)
 {
     // Initialize simulation parameters
     m_simParams.gravity = Config::DEFAULT_GRAVITY;
@@ -42,6 +48,8 @@ Application::Application()
     m_simParams.restitution = Config::DEFAULT_RESTITUTION;
     m_simParams.bounds_width = (float)m_windowWidth;
     m_simParams.bounds_height = (float)m_windowHeight;
+    m_simParams.collision_iterations = m_collisionIterations;
+    m_simParams.cuda_block_size = m_cudaBlockSize;
     
     // Initialize grid parameters
     updateGridParams();
@@ -60,11 +68,15 @@ bool Application::initialize() {
         initializeCUDA();
         
         m_renderer.initialize();
-        m_particleSystem.initialize(m_renderer);
-        m_physicsEngine.initialize();
+        m_particleSystem.initialize(m_renderer, m_useCUDA);
+        if (m_useCUDA) {
+            m_physicsEngine.initialize();
+        } else {
+            m_cpuEngine.initialize();
+        }
         
         // Initialize particles
-        m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius);
+        m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius, m_renderer);
         
         initializeImGui();
         setupCallbacks();
@@ -161,10 +173,21 @@ void Application::handleInput() {
 void Application::update() {
     if (!m_paused) {
         simParams = m_simParams; // Update global params
-        
-        m_particleSystem.mapResources();
-        m_physicsEngine.simulate(m_particleSystem.getParticles(), m_simParams, m_gridParams);
-        m_particleSystem.unmapResources();
+        if (m_useCUDA) {
+            m_particleSystem.mapResourcesCUDA();
+            m_physicsEngine.simulate(m_particleSystem.getParticles(), m_simParams, m_gridParams);
+            m_particleSystem.unmapResourcesCUDA();
+        } else {
+            m_particleSystem.mapResourcesCPU(m_renderer);
+            m_cpuEngine.simulate(m_particleSystem.getParticles(), m_simParams, m_gridParams);
+            // Unmap GL buffers
+            glBindBuffer(GL_ARRAY_BUFFER, m_renderer.getVBO_PosX()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, m_renderer.getVBO_PosY()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, m_renderer.getVBO_VelX()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, m_renderer.getVBO_VelY()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, m_renderer.getVBO_Radius()); glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+        }
     }
 }
 
@@ -183,6 +206,22 @@ void Application::renderUI() {
                 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
     ImGui::Text("Particles: %d", m_particleCount);
     ImGui::Separator();
+    ImGui::Text("Backend");
+    static int backend = 0; // 0 = CUDA, 1 = CPU
+    const char* backends[] = { "CUDA", "CPU" };
+    if (ImGui::Combo("Physics Backend", &backend, backends, IM_ARRAYSIZE(backends))) {
+        bool newUseCUDA = (backend == 0);
+        if (newUseCUDA != m_useCUDA) {
+            // Reinitialize particle system and engines for new backend
+            m_paused = true;
+            m_particleSystem.cleanup();
+            if (m_useCUDA) m_physicsEngine.cleanup(); else m_cpuEngine.cleanup();
+            m_useCUDA = newUseCUDA;
+            m_particleSystem.initialize(m_renderer, m_useCUDA);
+            if (m_useCUDA) m_physicsEngine.initialize(); else m_cpuEngine.initialize();
+            resetParticles();
+        }
+    }
 
     ImGui::Checkbox("Pause", &m_paused);
     
@@ -193,7 +232,7 @@ void Application::renderUI() {
     static int newParticleCount = m_particleCount;
     static float newParticleRadius = m_particleRadius;
     
-    bool particleCountChanged = ImGui::SliderInt("Particle Count", &newParticleCount, 10, 100000, "%d", ImGuiSliderFlags_Logarithmic);
+    bool particleCountChanged = ImGui::SliderInt("Particle Count", &newParticleCount, 10, 500000, "%d", ImGuiSliderFlags_Logarithmic);
     bool particleRadiusChanged = ImGui::SliderFloat("Particle Radius", &newParticleRadius, 0.5f, 50.0f);
     
     if (particleCountChanged || particleRadiusChanged) {
@@ -207,6 +246,13 @@ void Application::renderUI() {
     ImGui::SliderFloat("Restitution", &m_simParams.restitution, 0.0f, 1.0f);
     ImGui::SliderFloat("Simulation dt", &m_simParams.dt, 0.0001f, 0.3f, 
                        "%.4f", ImGuiSliderFlags_Logarithmic);
+    
+    if (ImGui::SliderInt("Collision Iterations", &m_collisionIterations, 1, 50)) {
+        m_simParams.collision_iterations = m_collisionIterations;
+    }
+    if (ImGui::SliderInt("CUDA Block Size", &m_cudaBlockSize, 32, 1024)) {
+        m_simParams.cuda_block_size = m_cudaBlockSize;
+    }
     
     ImGui::Separator();
     ImGui::Text("Rendering");
@@ -223,7 +269,7 @@ void Application::renderUI() {
 }
 
 void Application::resetParticles() {
-    m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius);
+    m_particleSystem.reset(m_windowWidth, m_windowHeight, m_particleRadius, m_renderer);
 }
 
 void Application::reinitializeSimulation(int newParticleCount, float newParticleRadius) {
@@ -240,7 +286,7 @@ void Application::reinitializeSimulation(int newParticleCount, float newParticle
     
     // Cleanup old resources
     m_particleSystem.cleanup();
-    m_physicsEngine.cleanup();
+    if (m_useCUDA) m_physicsEngine.cleanup(); else m_cpuEngine.cleanup();
     m_renderer.cleanup();
     
     // Recreate systems with new parameters
@@ -250,14 +296,17 @@ void Application::reinitializeSimulation(int newParticleCount, float newParticle
     m_physicsEngine = PhysicsEngine(newParticleCount,
                                      (int)(m_windowWidth / gridCellSize) + 1,
                                      (int)(m_windowHeight / gridCellSize) + 1);
+    m_cpuEngine = CpuPhysicsEngine(newParticleCount,
+                                   (int)(m_windowWidth / gridCellSize) + 1,
+                                   (int)(m_windowHeight / gridCellSize) + 1);
     
     // Reinitialize
     m_renderer.initialize(newParticleCount);
-    m_particleSystem.initialize(m_renderer);
-    m_physicsEngine.initialize();
+    m_particleSystem.initialize(m_renderer, m_useCUDA);
+    if (m_useCUDA) m_physicsEngine.initialize(); else m_cpuEngine.initialize();
     
     // Reset particles with new radius
-    m_particleSystem.reset(m_windowWidth, m_windowHeight, newParticleRadius);
+    m_particleSystem.reset(m_windowWidth, m_windowHeight, newParticleRadius, m_renderer);
     
     // Update grid parameters
     m_gridParams.grid_width = (int)(m_windowWidth / gridCellSize) + 1;
@@ -267,7 +316,7 @@ void Application::reinitializeSimulation(int newParticleCount, float newParticle
 
 void Application::cleanup() {
     m_particleSystem.cleanup();
-    m_physicsEngine.cleanup();
+    if (m_useCUDA) m_physicsEngine.cleanup(); else m_cpuEngine.cleanup();
     m_renderer.cleanup();
     
     if (m_window) {

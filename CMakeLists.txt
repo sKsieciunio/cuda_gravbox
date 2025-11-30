@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_ARCHITECTURES 75)
 
 # Dependencies
 find_package(OpenGL REQUIRED)
@@ -37,6 +38,7 @@ set(APP_SOURCES
     ${SRC_DIR}/Renderer.cpp
     ${SRC_DIR}/ParticleSystem.cpp
     ${SRC_DIR}/PhysicsEngine.cpp
+    ${SRC_DIR}/CpuPhysicsEngine.cpp
     ${SRC_DIR}/PhysicsKernels.cu
 )
 

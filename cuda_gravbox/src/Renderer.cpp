@@ -108,11 +108,13 @@ void Renderer::beginFrame() {
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void Renderer::render(int particleCount, const Camera& camera, float velocityHueRange) {
+void Renderer::render(int particleCount, const Camera& camera, float velocityHueRange, ColoringMode coloringMode) {
     m_particleShader.use();
     m_particleShader.setMat4("projection", camera.getProjectionMatrix());
     m_particleShader.setFloat("max_speed", velocityHueRange);
     m_particleShader.setFloat("radius_multiplier", camera.getZoom());
+    m_particleShader.setInt("coloring_mode", (int)coloringMode);
+    m_particleShader.setInt("particle_count", particleCount);
 
     glBindVertexArray(m_vao);
     glDrawArrays(GL_POINTS, 0, particleCount);

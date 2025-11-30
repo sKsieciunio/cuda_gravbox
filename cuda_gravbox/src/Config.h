@@ -3,8 +3,8 @@
 namespace Config
 {
     // Particle configuration
-    constexpr float PARTICLE_RADIUS = 20.0f;
-    constexpr int PARTICLE_COUNT = 100;
+    constexpr float PARTICLE_RADIUS = 2.0f;
+    constexpr int PARTICLE_COUNT = 20000;
 
     // Alternative configurations for different scenarios:
     // Medium: PARTICLE_RADIUS = 2.0f, PARTICLE_COUNT = 10000
@@ -30,7 +30,7 @@ namespace Config
     constexpr float DEFAULT_VELOCITY_TO_HUE_RANGE = 300.0f;
 
     // Physics iterations
-    constexpr int COLLISION_ITERATIONS = 10;
+    constexpr int COLLISION_ITERATIONS = 5;
 
     // CUDA configuration
     constexpr int CUDA_BLOCK_SIZE = 256;

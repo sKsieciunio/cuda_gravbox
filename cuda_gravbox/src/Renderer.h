@@ -4,6 +4,11 @@
 #include "shader.h"
 #include "Camera.h"
 
+enum class ColoringMode {
+    VELOCITY = 0,
+    ID = 1
+};
+
 class Renderer {
 public:
     Renderer();
@@ -14,7 +19,7 @@ public:
     void cleanup();
     
     void beginFrame();
-    void render(int particleCount, const Camera& camera, float velocityHueRange);
+    void render(int particleCount, const Camera& camera, float velocityHueRange, ColoringMode coloringMode = ColoringMode::VELOCITY);
     
     GLuint getVBO_PosX() const { return m_vbo_pos_x; }
     GLuint getVBO_PosY() const { return m_vbo_pos_y; }

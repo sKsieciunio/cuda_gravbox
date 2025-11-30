@@ -40,7 +40,8 @@ Application::Application()
     , m_collisionIterations(Config::COLLISION_ITERATIONS)
     , m_cudaBlockSize(Config::CUDA_BLOCK_SIZE)
     , m_useCUDA(true)
-    , m_spawnMode(SpawnMode::DISK_CORNER)
+    , m_spawnMode(SpawnMode::DISK_CENTER_EXPLOSION)
+    , m_coloringMode(ColoringMode::ID)
 {
     // Initialize simulation parameters
     m_simParams.gravity = Config::DEFAULT_GRAVITY;
@@ -194,7 +195,7 @@ void Application::update() {
 
 void Application::renderFrame() {
     m_renderer.beginFrame();
-    m_renderer.render(m_particleSystem.getCount(), m_camera, m_velocityToHueRange);
+    m_renderer.render(m_particleSystem.getCount(), m_camera, m_velocityToHueRange, m_coloringMode);
 }
 
 void Application::renderUI() {
@@ -264,6 +265,13 @@ void Application::renderUI() {
     
     ImGui::Separator();
     ImGui::Text("Rendering");
+    
+    static int coloringMode = (int)m_coloringMode;
+    const char* coloringModes[] = { "Velocity", "ID" };
+    if (ImGui::Combo("Coloring Mode", &coloringMode, coloringModes, IM_ARRAYSIZE(coloringModes))) {
+        m_coloringMode = (ColoringMode)coloringMode;
+    }
+
     ImGui::SliderFloat("Hue range", &m_velocityToHueRange, 10.0f, 300.0f);
 
     if (ImGui::Button("Reset Particles")) {

@@ -38,6 +38,7 @@ private:
     int m_particleCount;
     float m_particleRadius;
     SpawnMode m_spawnMode;
+    ColoringMode m_coloringMode;
     
     // Runtime physics configuration
     int m_collisionIterations;

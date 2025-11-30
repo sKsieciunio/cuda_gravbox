@@ -53,6 +53,7 @@ Application::Application()
     m_simParams.bounds_height = (float)m_windowHeight;
     m_simParams.collision_iterations = m_collisionIterations;
     m_simParams.cuda_block_size = m_cudaBlockSize;
+    m_simParams.enable_air_blowers = 0;
     
     // Initialize grid parameters
     updateGridParams();
@@ -318,6 +319,12 @@ void Application::renderUI() {
     
     ImGui::Separator();
     ImGui::Text("Physics Parameters");
+    
+    bool airBlowers = m_simParams.enable_air_blowers != 0;
+    if (ImGui::Checkbox("Enable Air Blowers", &airBlowers)) {
+        m_simParams.enable_air_blowers = airBlowers ? 1 : 0;
+    }
+
     ImGui::SliderFloat("Gravity", &m_simParams.gravity, -5000.0f, 0.0f);
     ImGui::SliderFloat("Dampening", &m_simParams.dampening, 0.0f, 1.0f);
     ImGui::SliderFloat("Restitution", &m_simParams.restitution, 0.0f, 1.0f);

@@ -48,6 +48,24 @@ __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, 
     // Apply acceleration (gravity)
     vel_y += params.gravity * params.dt;
 
+    // Air blowers
+    if (params.enable_air_blowers)
+    {
+        float margin = 150.0f;
+        float force = 2000.0f;
+
+        if (pos_x < margin)
+        {
+            vel_x += force * 0.5f * params.dt;
+            vel_y += force * 1.5f * params.dt;
+        }
+        else if (pos_x > params.bounds_width - margin)
+        {
+            vel_x -= force * 0.5f * params.dt;
+            vel_y += force * 1.5f * params.dt;
+        }
+    }
+
     // Clamp velocity
     float speed_sq = vel_x * vel_x + vel_y * vel_y;
     if (speed_sq > params.max_speed * params.max_speed)

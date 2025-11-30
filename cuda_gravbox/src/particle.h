@@ -35,6 +35,7 @@ struct SimulationParams {
 	float max_speed;    // Maximum speed of particles
 	int collision_iterations; // Number of collision constraint iterations
 	int cuda_block_size;      // CUDA block size for kernel launches
+	int enable_air_blowers;   // Enable air blowers on margins
 };
 
 struct GridParams {

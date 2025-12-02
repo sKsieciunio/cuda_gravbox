@@ -5,35 +5,39 @@
 #include <cstring>
 
 CpuPhysicsEngine::CpuPhysicsEngine(int particleCount, int gridWidth, int gridHeight)
-    : m_particleCount(particleCount)
-    , m_numCells(gridWidth * gridHeight)
-    , m_particleGridIndex(nullptr)
-    , m_particleIndices(nullptr)
-    , m_gridCellStart(nullptr)
-    , m_gridCellEnd(nullptr) {}
+    : m_particleCount(particleCount), m_numCells(gridWidth * gridHeight), m_particleGridIndex(nullptr), m_particleIndices(nullptr), m_gridCellStart(nullptr), m_gridCellEnd(nullptr) {}
 
 CpuPhysicsEngine::~CpuPhysicsEngine() { cleanup(); }
 
-void CpuPhysicsEngine::initialize() {
-    cleanup(); // Ensure clean state
+void CpuPhysicsEngine::initialize()
+{
+    cleanup();
 
     m_particleGridIndex = new int[m_particleCount];
     m_particleIndices = new int[m_particleCount];
     m_gridCellStart = new int[m_numCells];
     m_gridCellEnd = new int[m_numCells];
-    for (int i = 0; i < m_particleCount; ++i) m_particleIndices[i] = i;
+    for (int i = 0; i < m_particleCount; ++i)
+        m_particleIndices[i] = i;
 }
 
-void CpuPhysicsEngine::cleanup() {
-    delete[] m_particleGridIndex; m_particleGridIndex = nullptr;
-    delete[] m_particleIndices; m_particleIndices = nullptr;
-    delete[] m_gridCellStart; m_gridCellStart = nullptr;
-    delete[] m_gridCellEnd; m_gridCellEnd = nullptr;
+void CpuPhysicsEngine::cleanup()
+{
+    delete[] m_particleGridIndex;
+    m_particleGridIndex = nullptr;
+    delete[] m_particleIndices;
+    m_particleIndices = nullptr;
+    delete[] m_gridCellStart;
+    m_gridCellStart = nullptr;
+    delete[] m_gridCellEnd;
+    m_gridCellEnd = nullptr;
 }
 
-void CpuPhysicsEngine::resize(int gridWidth, int gridHeight) {
+void CpuPhysicsEngine::resize(int gridWidth, int gridHeight)
+{
     int newNumCells = gridWidth * gridHeight;
-    if (newNumCells == m_numCells) return;
+    if (newNumCells == m_numCells)
+        return;
 
     delete[] m_gridCellStart;
     delete[] m_gridCellEnd;
@@ -43,8 +47,10 @@ void CpuPhysicsEngine::resize(int gridWidth, int gridHeight) {
     m_gridCellEnd = new int[m_numCells];
 }
 
-void CpuPhysicsEngine::updateParticles(ParticlesSoA& particles, const SimulationParams& params) {
-    for (int idx = 0; idx < m_particleCount; ++idx) {
+void CpuPhysicsEngine::updateParticles(ParticlesSoA &particles, const SimulationParams &params)
+{
+    for (int idx = 0; idx < m_particleCount; ++idx)
+    {
         float pos_x = particles.position_x[idx];
         float pos_y = particles.position_y[idx];
         float prev_pos_x = particles.prev_position_x[idx];
@@ -55,23 +61,26 @@ void CpuPhysicsEngine::updateParticles(ParticlesSoA& particles, const Simulation
         float vel_y = (pos_y - prev_pos_y) / params.dt;
         vel_y += params.gravity * params.dt;
 
-        // Air blowers
-        if (params.enable_air_blowers) {
+        if (params.enable_air_blowers)
+        {
             float margin = 150.0f;
             float force = 4000.0f;
-            
-            if (pos_x < margin) {
+
+            if (pos_x < margin)
+            {
                 vel_x += force * 0.5f * params.dt;
                 vel_y += force * 1.5f * params.dt;
-            } else if (pos_x > params.bounds_width - margin) {
+            }
+            else if (pos_x > params.bounds_width - margin)
+            {
                 vel_x -= force * 0.5f * params.dt;
                 vel_y += force * 1.5f * params.dt;
             }
         }
 
-        // Clamp velocity
         float speed_sq = vel_x * vel_x + vel_y * vel_y;
-        if (speed_sq > params.max_speed * params.max_speed) {
+        if (speed_sq > params.max_speed * params.max_speed)
+        {
             float scale = params.max_speed / std::sqrt(speed_sq);
             vel_x *= scale;
             vel_y *= scale;
@@ -89,28 +98,33 @@ void CpuPhysicsEngine::updateParticles(ParticlesSoA& particles, const Simulation
         particles.position_x[idx] = new_pos_x;
         particles.position_y[idx] = new_pos_y;
 
-        // Boundaries - use velocity for proper Verlet dampening
-        if (new_pos_x - radius < 0.0f) {
+        if (new_pos_x - radius < 0.0f)
+        {
             particles.position_x[idx] = radius;
             particles.prev_position_x[idx] = particles.position_x[idx] + vel_x * params.dt * params.dampening;
         }
-        if (new_pos_x + radius > params.bounds_width) {
+        if (new_pos_x + radius > params.bounds_width)
+        {
             particles.position_x[idx] = params.bounds_width - radius;
             particles.prev_position_x[idx] = particles.position_x[idx] + vel_x * params.dt * params.dampening;
         }
-        if (new_pos_y - radius < 0.0f) {
+        if (new_pos_y - radius < 0.0f)
+        {
             particles.position_y[idx] = radius;
             particles.prev_position_y[idx] = particles.position_y[idx] + vel_y * params.dt * params.dampening;
         }
-        if (new_pos_y + radius > params.bounds_height) {
+        if (new_pos_y + radius > params.bounds_height)
+        {
             particles.position_y[idx] = params.bounds_height - radius;
             particles.prev_position_y[idx] = particles.position_y[idx] + vel_y * params.dt * params.dampening;
         }
     }
 }
 
-void CpuPhysicsEngine::assignToGrid(const ParticlesSoA& particles, const GridParams& gridParams) {
-    for (int idx = 0; idx < m_particleCount; ++idx) {
+void CpuPhysicsEngine::assignToGrid(const ParticlesSoA &particles, const GridParams &gridParams)
+{
+    for (int idx = 0; idx < m_particleCount; ++idx)
+    {
         float pos_x = particles.position_x[idx];
         float pos_y = particles.position_y[idx];
         int cellX = (int)std::floor(pos_x / gridParams.cell_size);
@@ -120,34 +134,44 @@ void CpuPhysicsEngine::assignToGrid(const ParticlesSoA& particles, const GridPar
         int cellIndex = cellY * gridParams.grid_width + cellX;
         m_particleGridIndex[idx] = cellIndex;
     }
-    // sort by key
     std::vector<int> order(m_particleCount);
-    for (int i = 0; i < m_particleCount; ++i) order[i] = i;
-    std::stable_sort(order.begin(), order.end(), [&](int a, int b){ return m_particleGridIndex[a] < m_particleGridIndex[b]; });
-    // apply sort to indices and keys
+    for (int i = 0; i < m_particleCount; ++i)
+        order[i] = i;
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b)
+                     { return m_particleGridIndex[a] < m_particleGridIndex[b]; });
     std::vector<int> sortedKeys(m_particleCount);
     std::vector<int> sortedIdx(m_particleCount);
-    for (int i = 0; i < m_particleCount; ++i) { sortedKeys[i] = m_particleGridIndex[order[i]]; sortedIdx[i] = order[i]; }
+    for (int i = 0; i < m_particleCount; ++i)
+    {
+        sortedKeys[i] = m_particleGridIndex[order[i]];
+        sortedIdx[i] = order[i];
+    }
     std::memcpy(m_particleGridIndex, sortedKeys.data(), m_particleCount * sizeof(int));
     std::memcpy(m_particleIndices, sortedIdx.data(), m_particleCount * sizeof(int));
 }
 
-void CpuPhysicsEngine::findCellBounds() {
+void CpuPhysicsEngine::findCellBounds()
+{
     std::fill(m_gridCellStart, m_gridCellStart + m_numCells, -1);
     std::fill(m_gridCellEnd, m_gridCellEnd + m_numCells, 0);
-    for (int idx = 0; idx < m_particleCount; ++idx) {
+    for (int idx = 0; idx < m_particleCount; ++idx)
+    {
         int cellIndex = m_particleGridIndex[idx];
-        if (idx == 0 || cellIndex != m_particleGridIndex[idx - 1]) {
+        if (idx == 0 || cellIndex != m_particleGridIndex[idx - 1])
+        {
             m_gridCellStart[cellIndex] = idx;
         }
-        if (idx == m_particleCount - 1 || cellIndex != m_particleGridIndex[idx + 1]) {
+        if (idx == m_particleCount - 1 || cellIndex != m_particleGridIndex[idx + 1])
+        {
             m_gridCellEnd[cellIndex] = idx + 1;
         }
     }
 }
 
-void CpuPhysicsEngine::handleCollisions(ParticlesSoA& particles, const GridParams& gridParams, const SimulationParams& simParams) {
-    for (int idx = 0; idx < m_particleCount; ++idx) {
+void CpuPhysicsEngine::handleCollisions(ParticlesSoA &particles, const GridParams &gridParams, const SimulationParams &simParams)
+{
+    for (int idx = 0; idx < m_particleCount; ++idx)
+    {
         int particleIdx = m_particleIndices[idx];
         float p1_pos_x = particles.position_x[particleIdx];
         float p1_pos_y = particles.position_y[particleIdx];
@@ -155,17 +179,23 @@ void CpuPhysicsEngine::handleCollisions(ParticlesSoA& particles, const GridParam
         int cellIndex = m_particleGridIndex[idx];
         int cellX = cellIndex % gridParams.grid_width;
         int cellY = cellIndex / gridParams.grid_width;
-        for (int dy = -1; dy <= 1; ++dy) {
-            for (int dx = -1; dx <= 1; ++dx) {
+        for (int dy = -1; dy <= 1; ++dy)
+        {
+            for (int dx = -1; dx <= 1; ++dx)
+            {
                 int nx = cellX + dx, ny = cellY + dy;
-                if (nx < 0 || nx >= gridParams.grid_width || ny < 0 || ny >= gridParams.grid_height) continue;
+                if (nx < 0 || nx >= gridParams.grid_width || ny < 0 || ny >= gridParams.grid_height)
+                    continue;
                 int nCell = ny * gridParams.grid_width + nx;
                 int start = m_gridCellStart[nCell];
                 int end = m_gridCellEnd[nCell];
-                if (start == -1) continue;
-                for (int i = start; i < end; ++i) {
+                if (start == -1)
+                    continue;
+                for (int i = start; i < end; ++i)
+                {
                     int otherIdx = m_particleIndices[i];
-                    if (particleIdx >= otherIdx) continue;
+                    if (particleIdx >= otherIdx)
+                        continue;
                     float p2_pos_x = particles.position_x[otherIdx];
                     float p2_pos_y = particles.position_y[otherIdx];
                     float p2_radius = particles.radius[otherIdx];
@@ -174,20 +204,20 @@ void CpuPhysicsEngine::handleCollisions(ParticlesSoA& particles, const GridParam
                     float distSq = dx_d * dx_d + dy_d * dy_d;
                     float minDist = p1_radius + p2_radius;
                     float minDistSq = minDist * minDist;
-                    if (distSq < minDistSq && distSq > 1e-4f) {
+                    if (distSq < minDistSq && distSq > 1e-4f)
+                    {
                         float dist = std::sqrt(distSq);
                         float nxn = dx_d / dist;
                         float nyn = dy_d / dist;
                         float overlap = minDist - dist;
                         float sepX = nxn * overlap * 0.5f;
                         float sepY = nyn * overlap * 0.5f;
-                        
+
                         particles.position_x[particleIdx] -= sepX;
                         particles.position_y[particleIdx] -= sepY;
                         particles.position_x[otherIdx] += sepX;
                         particles.position_y[otherIdx] += sepY;
 
-                        // Update local position for subsequent checks
                         p1_pos_x -= sepX;
                         p1_pos_y -= sepY;
                     }
@@ -197,11 +227,11 @@ void CpuPhysicsEngine::handleCollisions(ParticlesSoA& particles, const GridParam
     }
 }
 
-void CpuPhysicsEngine::simulate(ParticlesSoA& particles, const SimulationParams& simParams, const GridParams& gridParams) {
-    // single physics update
+void CpuPhysicsEngine::simulate(ParticlesSoA &particles, const SimulationParams &simParams, const GridParams &gridParams)
+{
     updateParticles(particles, simParams);
-    // constraints iterations
-    for (int iter = 0; iter < simParams.collision_iterations; ++iter) {
+    for (int iter = 0; iter < simParams.collision_iterations; ++iter)
+    {
         assignToGrid(particles, gridParams);
         findCellBounds();
         handleCollisions(particles, gridParams, simParams);

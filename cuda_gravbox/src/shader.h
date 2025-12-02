@@ -13,7 +13,7 @@ public:
 
 	Shader() : ID(0) {}
 
-	static Shader FromSource(const char* vertexCode, const char* fragmentCode)
+	static Shader FromSource(const char *vertexCode, const char *fragmentCode)
 	{
 		Shader shader;
 		shader.compileAndLink(vertexCode, fragmentCode);
@@ -25,24 +25,23 @@ public:
 		glUseProgram(ID);
 	}
 
-	void setMat4(const std::string& name, const float* value) const
+	void setMat4(const std::string &name, const float *value) const
 	{
 		glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, value);
 	}
 
-	void setFloat(const std::string& name, float value) const
+	void setFloat(const std::string &name, float value) const
 	{
 		glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
 	}
 
-	void setInt(const std::string& name, int value) const
+	void setInt(const std::string &name, int value) const
 	{
 		glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
 	}
 
 private:
-
-	void compileAndLink(const char* vShaderCode, const char* fShaderCode)
+	void compileAndLink(const char *vShaderCode, const char *fShaderCode)
 	{
 		GLuint vertex, fragment;
 
@@ -76,7 +75,8 @@ private:
 			if (!success)
 			{
 				glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-				std::cout << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << infoLog << std::endl;
+				std::cout << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n"
+						  << infoLog << std::endl;
 			}
 		}
 		else
@@ -85,7 +85,8 @@ private:
 			if (!success)
 			{
 				glGetProgramInfoLog(shader, 1024, NULL, infoLog);
-				std::cout << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << infoLog << std::endl;
+				std::cout << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n"
+						  << infoLog << std::endl;
 			}
 		}
 	}

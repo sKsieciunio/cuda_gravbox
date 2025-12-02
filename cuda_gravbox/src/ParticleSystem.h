@@ -5,32 +5,34 @@
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
 
-enum class SpawnMode {
+enum class SpawnMode
+{
     UNIFORM,
     DISK_CORNER,
     DISK_CENTER_EXPLOSION,
     DISK_VS_WALL
 };
 
-class ParticleSystem {
+class ParticleSystem
+{
 public:
     ParticleSystem(int particleCount, int windowWidth, int windowHeight);
     ~ParticleSystem();
-    
-    void initialize(Renderer& renderer, bool useCUDA = true);
+
+    void initialize(Renderer &renderer, bool useCUDA = true);
     void cleanup();
-    
-    void reset(int windowWidth, int windowHeight, float particleRadius, Renderer& renderer, SpawnMode mode = SpawnMode::DISK_CORNER);
-    void shiftParticles(float dx, float dy, Renderer* renderer = nullptr);
-    
+
+    void reset(int windowWidth, int windowHeight, float particleRadius, Renderer &renderer, SpawnMode mode = SpawnMode::DISK_CORNER);
+    void shiftParticles(float dx, float dy, Renderer *renderer = nullptr);
+
     void mapResourcesCUDA();
     void unmapResourcesCUDA();
-    void mapResourcesCPU(Renderer& renderer);
+    void mapResourcesCPU(Renderer &renderer);
     void unmapResourcesCPU();
-    
-    ParticlesSoA& getParticles() { return m_particles; }
-    const ParticlesSoA& getParticles() const { return m_particles; }
-    
+
+    ParticlesSoA &getParticles() { return m_particles; }
+    const ParticlesSoA &getParticles() const { return m_particles; }
+
     int getCount() const { return m_particleCount; }
     bool isCUDA() const { return m_useCUDA; }
 
@@ -39,17 +41,15 @@ private:
     ParticlesSoA m_particles;
     bool m_useCUDA;
     // Host-side arrays when CPU mode
-    float* h_prev_position_x;
-    float* h_prev_position_y;
-    
-    
-    // CUDA-OpenGL interop resources
-    cudaGraphicsResource* m_cuda_res_pos_x;
-    cudaGraphicsResource* m_cuda_res_pos_y;
-    cudaGraphicsResource* m_cuda_res_vel_x;
-    cudaGraphicsResource* m_cuda_res_vel_y;
-    cudaGraphicsResource* m_cuda_res_radius;
-    
-    void registerGLBuffers(Renderer& renderer);
+    float *h_prev_position_x;
+    float *h_prev_position_y;
+
+    cudaGraphicsResource *m_cuda_res_pos_x;
+    cudaGraphicsResource *m_cuda_res_pos_y;
+    cudaGraphicsResource *m_cuda_res_vel_x;
+    cudaGraphicsResource *m_cuda_res_vel_y;
+    cudaGraphicsResource *m_cuda_res_radius;
+
+    void registerGLBuffers(Renderer &renderer);
     void initializeParticleData(int windowWidth, int windowHeight, float particleRadius, SpawnMode mode);
 };

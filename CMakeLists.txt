@@ -2,18 +2,15 @@ cmake_minimum_required(VERSION 3.20)
 
 project(cuda_gravbox LANGUAGES CXX CUDA)
 
-# Standards
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 # set(CMAKE_CUDA_ARCHITECTURES 75)
 
-# Dependencies
 find_package(OpenGL REQUIRED)
 find_package(CUDAToolkit REQUIRED)
 
-# Paths
 set(PROJ_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/cuda_gravbox)
 set(SRC_DIR   ${PROJ_ROOT}/src)
 set(EXT_DIR   ${PROJ_ROOT}/external)
@@ -91,10 +88,3 @@ target_link_libraries(${PROJECT_NAME}
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CUDA_SEPARABLE_COMPILATION ON
 )
-
-# Windows: copy GLFW runtime DLL next to the executable after build
-# No DLL copy needed: static GLFW linking
-
-# Group sources neatly in IDEs
-source_group(TREE ${SRC_DIR} FILES ${APP_SOURCES})
-source_group(TREE ${IMGUI_DIR} FILES ${IMGUI_SOURCES})

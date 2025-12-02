@@ -28,7 +28,6 @@ void runShiftParticles(ParticlesSoA d_particles, int numParticles, float shiftX,
     cudaDeviceSynchronize();
 }
 
-// CUDA kernel for updating particle physics using Verlet integration
 __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, SimulationParams params)
 {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -41,11 +40,9 @@ __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, 
     float prev_pos_y = particles.prev_position_y[idx];
     float radius = particles.radius[idx];
 
-    // Calculate current velocity from position difference (more numerically stable)
     float vel_x = (pos_x - prev_pos_x) / params.dt;
     float vel_y = (pos_y - prev_pos_y) / params.dt;
 
-    // Apply acceleration (gravity)
     vel_y += params.gravity * params.dt;
 
     // Air blowers
@@ -75,26 +72,22 @@ __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, 
         vel_y *= scale;
     }
 
-    // Store current position as previous
     particles.prev_position_x[idx] = pos_x;
     particles.prev_position_y[idx] = pos_y;
 
-    // Update position using velocity
     float new_pos_x = pos_x + vel_x * params.dt;
     float new_pos_y = pos_y + vel_y * params.dt;
 
-    // Store velocities for visualization
-    particles.velocity_x[idx] = vel_x;
-    particles.velocity_y[idx] = vel_y;
+    particles.velocity_x[idx] = vel_x * params.dt; // normalization for shaders
+    particles.velocity_y[idx] = vel_y * params.dt;
 
     particles.position_x[idx] = new_pos_x;
     particles.position_y[idx] = new_pos_y;
 
-    // Boundary collision detection and response
     // Left wall
     if (new_pos_x - radius < 0.0f)
     {
-        float vx = new_pos_x - prev_pos_x;
+        float vx = new_pos_x - pos_x;
         particles.position_x[idx] = radius;
         particles.prev_position_x[idx] = particles.position_x[idx] + vx * params.dampening;
     }
@@ -102,7 +95,7 @@ __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, 
     // Right wall
     if (new_pos_x + radius > params.bounds_width)
     {
-        float vx = new_pos_x - prev_pos_x;
+        float vx = new_pos_x - pos_x;
         particles.position_x[idx] = params.bounds_width - radius;
         particles.prev_position_x[idx] = particles.position_x[idx] + vx * params.dampening;
     }
@@ -110,7 +103,7 @@ __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, 
     // Bottom wall
     if (new_pos_y - radius < 0.0f)
     {
-        float vy = new_pos_y - prev_pos_y;
+        float vy = new_pos_y - pos_y;
         particles.position_y[idx] = radius;
         particles.prev_position_y[idx] = particles.position_y[idx] + vy * params.dampening;
     }
@@ -118,13 +111,12 @@ __global__ void updateParticlesKernel(ParticlesSoA particles, int numParticles, 
     // Top wall
     if (new_pos_y + radius > params.bounds_height)
     {
-        float vy = new_pos_y - prev_pos_y;
+        float vy = new_pos_y - pos_y;
         particles.position_y[idx] = params.bounds_height - radius;
         particles.prev_position_y[idx] = particles.position_y[idx] + vy * params.dampening;
     }
 }
 
-// Assign each particle to a grid cell
 __global__ void assignParticlesToGridKernel(
     ParticlesSoA particles,
     int *particleGridIndex,
@@ -148,7 +140,6 @@ __global__ void assignParticlesToGridKernel(
     particleGridIndex[idx] = cellIndex;
 }
 
-// Find start and end indices for particles in each grid cell
 __global__ void findCellBoundsKernel(
     const int *particleGridIndex,
     int *gridCellStart,
@@ -172,7 +163,6 @@ __global__ void findCellBoundsKernel(
     }
 }
 
-// Handle particle-particle collisions using spatial grid
 __global__ void handleCollisionsKernel(
     ParticlesSoA particles,
     const int *particleGridIndex,
@@ -197,7 +187,6 @@ __global__ void handleCollisionsKernel(
     int cellX = cellIndex % gridParams.grid_width;
     int cellY = cellIndex / gridParams.grid_width;
 
-    // Check neighboring cells
     for (int dy = -1; dy <= 1; dy++)
     {
         for (int dx = -1; dx <= 1; dx++)
@@ -226,23 +215,19 @@ __global__ void handleCollisionsKernel(
                 float p2_pos_y = particles.position_y[otherParticleIdx];
                 float p2_radius = particles.radius[otherParticleIdx];
 
-                // Calculate distance between particles
                 float dx_dist = p2_pos_x - p1_pos_x;
                 float dy_dist = p2_pos_y - p1_pos_y;
                 float distSq = dx_dist * dx_dist + dy_dist * dy_dist;
                 float minDist = p1_radius + p2_radius;
                 float minDistSq = minDist * minDist;
 
-                // Collision check
                 if (distSq < minDistSq && distSq > 0.0001f)
                 {
                     float dist = sqrtf(distSq);
 
-                    // Normalize collision normal
                     float nx = dx_dist / dist;
                     float ny = dy_dist / dist;
 
-                    // Separate overlapping particles
                     float overlap = minDist - dist;
                     float separationX = nx * overlap * 0.5f;
                     float separationY = ny * overlap * 0.5f;
@@ -257,7 +242,6 @@ __global__ void handleCollisionsKernel(
     }
 }
 
-// Host function to run the complete physics simulation
 void runPhysicsSimulation(
     ParticlesSoA d_particles,
     int *d_particleGridIndex,
@@ -275,41 +259,33 @@ void runPhysicsSimulation(
     cudaStream_t stream;
     cudaStreamCreate(&stream);
 
-    // Apply physics update once per frame (gravity, velocity integration)
     updateParticlesKernel<<<numBlocks, blockSize, 0, stream>>>(
         d_particles, numParticles, simParams);
 
-    // Multiple iterations for constraint satisfaction (collisions only)
     for (int iter = 0; iter < simParams.collision_iterations; iter++)
     {
-        // Clear grid
         cudaMemset(d_gridCellStart, -1, numCells * sizeof(int));
         cudaMemset(d_gridCellEnd, 0, numCells * sizeof(int));
 
-        // Assign particles to grid cells
         assignParticlesToGridKernel<<<numBlocks, blockSize, 0, stream>>>(
             d_particles, d_particleGridIndex, numParticles, gridParams);
 
         cudaDeviceSynchronize();
 
-        // Reset particle indices
         thrust::sequence(
             thrust::cuda::par.on(stream),
             thrust::device_pointer_cast(d_particleIndices),
             thrust::device_pointer_cast(d_particleIndices + numParticles));
 
-        // Sort particles by grid cell
         thrust::sort_by_key(
             thrust::cuda::par.on(stream),
             thrust::device_pointer_cast(d_particleGridIndex),
             thrust::device_pointer_cast(d_particleGridIndex + numParticles),
             thrust::device_pointer_cast(d_particleIndices));
 
-        // Find cell boundaries
         findCellBoundsKernel<<<numBlocks, blockSize, 0, stream>>>(
             d_particleGridIndex, d_gridCellStart, d_gridCellEnd, numParticles);
 
-        // Handle collisions (constraint satisfaction only)
         handleCollisionsKernel<<<numBlocks, blockSize, 0, stream>>>(
             d_particles,
             d_particleGridIndex,
@@ -323,7 +299,6 @@ void runPhysicsSimulation(
 
     cudaStreamDestroy(stream);
 
-    // Check for errors
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess)
     {

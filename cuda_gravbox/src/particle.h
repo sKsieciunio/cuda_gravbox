@@ -9,6 +9,7 @@ struct ParticlesSoA
 	float *prev_position_x;
 	float *prev_position_y;
 	float *radius;
+	float *mass;
 	int count;
 
 	// for coloring
@@ -23,6 +24,7 @@ struct Particle
 	float2 velocity;	 // vx, vy (pixels/second or units/second)
 	float2 acceleration; // ax, ay (pixels/second^2 or units/second^2)
 	float radius;		 // particle radius
+	float mass;			 // particle mass
 	float3 color;		 // RGB color (0.0 - 1.0)
 };
 

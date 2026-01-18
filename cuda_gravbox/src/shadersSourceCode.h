@@ -1,8 +1,9 @@
 #pragma once
 
-namespace Shaders {
+namespace Shaders
+{
 
-    constexpr const char* VERTEX_SHADER = R"(
+    constexpr const char *VERTEX_SHADER = R"(
 #version 330 core
 
 layout(location = 0) in float pos_x;
@@ -10,6 +11,7 @@ layout(location = 1) in float pos_y;
 layout(location = 2) in float vel_x;
 layout(location = 3) in float vel_y;
 layout(location = 4) in float radius;
+layout(location = 5) in float mass;
 
 //layout(location = 0) in vec2 aPos;
 //layout(location = 1) in vec2 aVelocity;
@@ -22,7 +24,7 @@ out float particleRadius;
 uniform mat4 projection;
 uniform float max_speed;
 uniform float radius_multiplier;
-uniform int coloring_mode; // 0: Velocity, 1: ID
+uniform int coloring_mode; // 0: Velocity, 1: ID, 2: Mass
 uniform int particle_count;
 
 vec3 hsv2rgb(vec3 c)
@@ -42,6 +44,12 @@ void main()
         // ID based coloring
         float hue = (float(gl_VertexID) / float(particle_count)) * 0.6;
         color = hsv2rgb(vec3(hue, 1.0, 1.0));
+    } else if (coloring_mode == 2) {
+        // Mass based coloring
+        // Mass range is 1.0 to 5.0
+        float mass_norm = clamp((mass - 1.0) / 4.0, 0.0, 1.0);
+        float hue = (1.0 - mass_norm) * 0.66; // From blue (0.66) to red (0.0)
+        color = hsv2rgb(vec3(hue, 1.0, 1.0));
     } else {
         // Velocity based coloring
         float speed = length(vec2(vel_x, vel_y));
@@ -55,7 +63,7 @@ void main()
 }
 )";
 
-    constexpr const char* FRAGMENT_SHADER = R"(
+    constexpr const char *FRAGMENT_SHADER = R"(
 #version 330 core
 
 in vec3 particleColor;

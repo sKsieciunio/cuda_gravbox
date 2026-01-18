@@ -7,7 +7,8 @@
 enum class ColoringMode
 {
     VELOCITY = 0,
-    ID = 1
+    ID = 1,
+    MASS = 2
 };
 
 class Renderer
@@ -28,6 +29,7 @@ public:
     GLuint getVBO_VelX() const { return m_vbo_vel_x; }
     GLuint getVBO_VelY() const { return m_vbo_vel_y; }
     GLuint getVBO_Radius() const { return m_vbo_radius; }
+    GLuint getVBO_Mass() const { return m_vbo_mass; }
 
 private:
     Shader m_particleShader;
@@ -37,6 +39,7 @@ private:
     GLuint m_vbo_vel_x;
     GLuint m_vbo_vel_y;
     GLuint m_vbo_radius;
+    GLuint m_vbo_mass;
     int m_particleCount;
 
     void setupBuffers(int particleCount);

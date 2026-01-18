@@ -182,6 +182,7 @@ __global__ void handleCollisionsKernel(
     float p1_pos_x = particles.position_x[particleIdx];
     float p1_pos_y = particles.position_y[particleIdx];
     float p1_radius = particles.radius[particleIdx];
+    float p1_mass = particles.mass[particleIdx];
 
     int cellIndex = particleGridIndex[idx];
     int cellX = cellIndex % gridParams.grid_width;
@@ -214,6 +215,7 @@ __global__ void handleCollisionsKernel(
                 float p2_pos_x = particles.position_x[otherParticleIdx];
                 float p2_pos_y = particles.position_y[otherParticleIdx];
                 float p2_radius = particles.radius[otherParticleIdx];
+                float p2_mass = particles.mass[otherParticleIdx];
 
                 float dx_dist = p2_pos_x - p1_pos_x;
                 float dy_dist = p2_pos_y - p1_pos_y;
@@ -229,13 +231,45 @@ __global__ void handleCollisionsKernel(
                     float ny = dy_dist / dist;
 
                     float overlap = minDist - dist;
-                    float separationX = nx * overlap * 0.5f;
-                    float separationY = ny * overlap * 0.5f;
 
-                    atomicAdd(&particles.position_x[particleIdx], -separationX);
-                    atomicAdd(&particles.position_y[particleIdx], -separationY);
-                    atomicAdd(&particles.position_x[otherParticleIdx], separationX);
-                    atomicAdd(&particles.position_y[otherParticleIdx], separationY);
+                    float totalMass = p1_mass + p2_mass;
+                    float p1_factor = p2_mass / totalMass;
+                    float p2_factor = p1_mass / totalMass;
+
+                    float separationX = nx * overlap;
+                    float separationY = ny * overlap;
+
+                    atomicAdd(&particles.position_x[particleIdx], -separationX * p1_factor);
+                    atomicAdd(&particles.position_y[particleIdx], -separationY * p1_factor);
+                    atomicAdd(&particles.position_x[otherParticleIdx], separationX * p2_factor);
+                    atomicAdd(&particles.position_y[otherParticleIdx], separationY * p2_factor);
+
+                    // Velocity correction (Restitution)
+                    float p1_prev_x = particles.prev_position_x[particleIdx];
+                    float p1_prev_y = particles.prev_position_y[particleIdx];
+                    float p2_prev_x = particles.prev_position_x[otherParticleIdx];
+                    float p2_prev_y = particles.prev_position_y[otherParticleIdx];
+
+                    float v1x = (p1_pos_x - p1_prev_x) / simParams.dt;
+                    float v1y = (p1_pos_y - p1_prev_y) / simParams.dt;
+                    float v2x = (p2_pos_x - p2_prev_x) / simParams.dt;
+                    float v2y = (p2_pos_y - p2_prev_y) / simParams.dt;
+
+                    float relVx = v1x - v2x;
+                    float relVy = v1y - v2y;
+                    float vNormal = relVx * nx + relVy * ny;
+
+                    if (vNormal > 0.0f) // Closing in
+                    {
+                        float j = -(simParams.restitution) * vNormal;
+                        float impulseX = j * nx;
+                        float impulseY = j * ny;
+
+                        atomicAdd(&particles.prev_position_x[particleIdx], -impulseX * p1_factor * simParams.dt);
+                        atomicAdd(&particles.prev_position_y[particleIdx], -impulseY * p1_factor * simParams.dt);
+                        atomicAdd(&particles.prev_position_x[otherParticleIdx], impulseX * p2_factor * simParams.dt);
+                        atomicAdd(&particles.prev_position_y[otherParticleIdx], impulseY * p2_factor * simParams.dt);
+                    }
                 }
             }
         }

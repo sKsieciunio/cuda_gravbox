@@ -46,7 +46,7 @@ Application::Application()
       m_collisionIterations(Config::COLLISION_ITERATIONS),
       m_cudaBlockSize(Config::CUDA_BLOCK_SIZE), m_useCUDA(true),
       m_spawnMode(SpawnMode::DISK_CENTER_EXPLOSION),
-      m_coloringMode(ColoringMode::ID)
+      m_coloringMode(ColoringMode::MASS)
 {
     m_simParams.gravity = Config::DEFAULT_GRAVITY;
     m_simParams.dt = Config::DEFAULT_DT;
@@ -362,7 +362,7 @@ void Application::renderUI()
     ImGui::Text("Rendering");
 
     static int coloringMode = (int)m_coloringMode;
-    const char *coloringModes[] = {"Velocity", "ID"};
+    const char *coloringModes[] = {"Velocity", "ID", "Mass"};
     if (ImGui::Combo("Coloring Mode", &coloringMode, coloringModes,
                      IM_ARRAYSIZE(coloringModes)))
     {

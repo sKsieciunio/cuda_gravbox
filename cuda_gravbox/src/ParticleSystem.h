@@ -49,6 +49,7 @@ private:
     cudaGraphicsResource *m_cuda_res_vel_x;
     cudaGraphicsResource *m_cuda_res_vel_y;
     cudaGraphicsResource *m_cuda_res_radius;
+    cudaGraphicsResource *m_cuda_res_mass;
 
     void registerGLBuffers(Renderer &renderer);
     void initializeParticleData(int windowWidth, int windowHeight, float particleRadius, SpawnMode mode);

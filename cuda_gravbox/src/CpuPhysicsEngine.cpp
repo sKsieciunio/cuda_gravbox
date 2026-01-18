@@ -199,6 +199,9 @@ void CpuPhysicsEngine::handleCollisions(ParticlesSoA &particles, const GridParam
                     float p2_pos_x = particles.position_x[otherIdx];
                     float p2_pos_y = particles.position_y[otherIdx];
                     float p2_radius = particles.radius[otherIdx];
+                    float p1_mass = particles.mass[particleIdx];
+                    float p2_mass = particles.mass[otherIdx];
+
                     float dx_d = p2_pos_x - p1_pos_x;
                     float dy_d = p2_pos_y - p1_pos_y;
                     float distSq = dx_d * dx_d + dy_d * dy_d;
@@ -210,16 +213,48 @@ void CpuPhysicsEngine::handleCollisions(ParticlesSoA &particles, const GridParam
                         float nxn = dx_d / dist;
                         float nyn = dy_d / dist;
                         float overlap = minDist - dist;
-                        float sepX = nxn * overlap * 0.5f;
-                        float sepY = nyn * overlap * 0.5f;
 
-                        particles.position_x[particleIdx] -= sepX;
-                        particles.position_y[particleIdx] -= sepY;
-                        particles.position_x[otherIdx] += sepX;
-                        particles.position_y[otherIdx] += sepY;
+                        float totalMass = p1_mass + p2_mass;
+                        float p1_factor = p2_mass / totalMass;
+                        float p2_factor = p1_mass / totalMass;
 
-                        p1_pos_x -= sepX;
-                        p1_pos_y -= sepY;
+                        float sepX = nxn * overlap;
+                        float sepY = nyn * overlap;
+
+                        // Velocity correction (Restitution)
+                        float p1_prev_x = particles.prev_position_x[particleIdx];
+                        float p1_prev_y = particles.prev_position_y[particleIdx];
+                        float p2_prev_x = particles.prev_position_x[otherIdx];
+                        float p2_prev_y = particles.prev_position_y[otherIdx];
+
+                        float v1x = (p1_pos_x - p1_prev_x) / simParams.dt;
+                        float v1y = (p1_pos_y - p1_prev_y) / simParams.dt;
+                        float v2x = (p2_pos_x - p2_prev_x) / simParams.dt;
+                        float v2y = (p2_pos_y - p2_prev_y) / simParams.dt;
+
+                        float relVx = v1x - v2x;
+                        float relVy = v1y - v2y;
+                        float vNormal = relVx * nxn + relVy * nyn;
+
+                        if (vNormal > 0.0f)
+                        {
+                            float j = -(1.0f + simParams.restitution) * vNormal;
+                            float impulseX = j * nxn;
+                            float impulseY = j * nyn;
+
+                            particles.prev_position_x[particleIdx] -= impulseX * p1_factor * simParams.dt;
+                            particles.prev_position_y[particleIdx] -= impulseY * p1_factor * simParams.dt;
+                            particles.prev_position_x[otherIdx] += impulseX * p2_factor * simParams.dt;
+                            particles.prev_position_y[otherIdx] += impulseY * p2_factor * simParams.dt;
+                        }
+
+                        particles.position_x[particleIdx] -= sepX * p1_factor;
+                        particles.position_y[particleIdx] -= sepY * p1_factor;
+                        particles.position_x[otherIdx] += sepX * p2_factor;
+                        particles.position_y[otherIdx] += sepY * p2_factor;
+
+                        p1_pos_x -= sepX * p1_factor;
+                        p1_pos_y -= sepY * p1_factor;
                     }
                 }
             }

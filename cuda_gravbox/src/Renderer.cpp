@@ -3,7 +3,7 @@
 #include "Config.h"
 
 Renderer::Renderer()
-    : m_particleShader(), m_vao(0), m_vbo_pos_x(0), m_vbo_pos_y(0), m_vbo_vel_x(0), m_vbo_vel_y(0), m_vbo_radius(0), m_particleCount(0)
+    : m_particleShader(), m_vao(0), m_vbo_pos_x(0), m_vbo_pos_y(0), m_vbo_vel_x(0), m_vbo_vel_y(0), m_vbo_radius(0), m_vbo_mass(0), m_particleCount(0)
 {
 }
 
@@ -51,8 +51,10 @@ void Renderer::cleanup()
         glDeleteBuffers(1, &m_vbo_vel_y);
     if (m_vbo_radius)
         glDeleteBuffers(1, &m_vbo_radius);
+    if (m_vbo_mass)
+        glDeleteBuffers(1, &m_vbo_mass);
 
-    m_vbo_pos_x = m_vbo_pos_y = m_vbo_vel_x = m_vbo_vel_y = m_vbo_radius = 0;
+    m_vbo_pos_x = m_vbo_pos_y = m_vbo_vel_x = m_vbo_vel_y = m_vbo_radius = m_vbo_mass = 0;
 }
 
 void Renderer::setupBuffers(int particleCount)
@@ -75,6 +77,10 @@ void Renderer::setupBuffers(int particleCount)
 
     glGenBuffers(1, &m_vbo_radius);
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo_radius);
+    glBufferData(GL_ARRAY_BUFFER, particleCount * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
+
+    glGenBuffers(1, &m_vbo_mass);
+    glBindBuffer(GL_ARRAY_BUFFER, m_vbo_mass);
     glBufferData(GL_ARRAY_BUFFER, particleCount * sizeof(float), nullptr, GL_DYNAMIC_DRAW);
 }
 
@@ -102,6 +108,10 @@ void Renderer::setupVertexAttributes()
     glBindBuffer(GL_ARRAY_BUFFER, m_vbo_radius);
     glEnableVertexAttribArray(4);
     glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, 0, (void *)0);
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_vbo_mass);
+    glEnableVertexAttribArray(5);
+    glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, 0, (void *)0);
 }
 
 void Renderer::beginFrame()

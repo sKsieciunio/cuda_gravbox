@@ -22,7 +22,7 @@ extern SimulationParams simParams;
     } while (0)
 
 ParticleSystem::ParticleSystem(int particleCount, int windowWidth, int windowHeight)
-    : m_particleCount(particleCount), m_useCUDA(true), h_prev_position_x(nullptr), h_prev_position_y(nullptr), m_cuda_res_pos_x(nullptr), m_cuda_res_pos_y(nullptr), m_cuda_res_vel_x(nullptr), m_cuda_res_vel_y(nullptr), m_cuda_res_radius(nullptr)
+    : m_particleCount(particleCount), m_useCUDA(true), h_prev_position_x(nullptr), h_prev_position_y(nullptr), m_cuda_res_pos_x(nullptr), m_cuda_res_pos_y(nullptr), m_cuda_res_vel_x(nullptr), m_cuda_res_vel_y(nullptr), m_cuda_res_radius(nullptr), m_cuda_res_mass(nullptr)
 {
     m_particles.count = particleCount;
     m_particles.position_x = nullptr;
@@ -32,6 +32,7 @@ ParticleSystem::ParticleSystem(int particleCount, int windowWidth, int windowHei
     m_particles.velocity_x = nullptr;
     m_particles.velocity_y = nullptr;
     m_particles.radius = nullptr;
+    m_particles.mass = nullptr;
 }
 
 ParticleSystem::~ParticleSystem()
@@ -69,6 +70,8 @@ void ParticleSystem::cleanup()
         CUDA_CHECK(cudaGraphicsUnregisterResource(m_cuda_res_vel_y));
     if (m_cuda_res_radius)
         CUDA_CHECK(cudaGraphicsUnregisterResource(m_cuda_res_radius));
+    if (m_cuda_res_mass)
+        CUDA_CHECK(cudaGraphicsUnregisterResource(m_cuda_res_mass));
 
     if (m_useCUDA)
     {
@@ -85,8 +88,9 @@ void ParticleSystem::cleanup()
             free(h_prev_position_y);
     }
 
-    m_cuda_res_pos_x = m_cuda_res_pos_y = m_cuda_res_vel_x = m_cuda_res_vel_y = m_cuda_res_radius = nullptr;
+    m_cuda_res_pos_x = m_cuda_res_pos_y = m_cuda_res_vel_x = m_cuda_res_vel_y = m_cuda_res_radius = m_cuda_res_mass = nullptr;
     m_particles.prev_position_x = m_particles.prev_position_y = nullptr;
+    m_particles.mass = nullptr;
     h_prev_position_x = h_prev_position_y = nullptr;
 }
 
@@ -102,6 +106,8 @@ void ParticleSystem::registerGLBuffers(Renderer &renderer)
                                             cudaGraphicsMapFlagsWriteDiscard));
     CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&m_cuda_res_radius, renderer.getVBO_Radius(),
                                             cudaGraphicsMapFlagsWriteDiscard));
+    CUDA_CHECK(cudaGraphicsGLRegisterBuffer(&m_cuda_res_mass, renderer.getVBO_Mass(),
+                                            cudaGraphicsMapFlagsWriteDiscard));
 }
 
 void ParticleSystem::mapResourcesCUDA()
@@ -109,9 +115,9 @@ void ParticleSystem::mapResourcesCUDA()
     size_t num_bytes;
     cudaGraphicsResource *resources[] = {
         m_cuda_res_pos_x, m_cuda_res_pos_y, m_cuda_res_vel_x,
-        m_cuda_res_vel_y, m_cuda_res_radius};
+        m_cuda_res_vel_y, m_cuda_res_radius, m_cuda_res_mass};
 
-    CUDA_CHECK(cudaGraphicsMapResources(5, resources));
+    CUDA_CHECK(cudaGraphicsMapResources(6, resources));
 
     CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void **)&m_particles.position_x,
                                                     &num_bytes, m_cuda_res_pos_x));
@@ -123,15 +129,17 @@ void ParticleSystem::mapResourcesCUDA()
                                                     &num_bytes, m_cuda_res_vel_y));
     CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void **)&m_particles.radius,
                                                     &num_bytes, m_cuda_res_radius));
+    CUDA_CHECK(cudaGraphicsResourceGetMappedPointer((void **)&m_particles.mass,
+                                                    &num_bytes, m_cuda_res_mass));
 }
 
 void ParticleSystem::unmapResourcesCUDA()
 {
     cudaGraphicsResource *resources[] = {
         m_cuda_res_pos_x, m_cuda_res_pos_y, m_cuda_res_vel_x,
-        m_cuda_res_vel_y, m_cuda_res_radius};
+        m_cuda_res_vel_y, m_cuda_res_radius, m_cuda_res_mass};
 
-    CUDA_CHECK(cudaGraphicsUnmapResources(5, resources));
+    CUDA_CHECK(cudaGraphicsUnmapResources(6, resources));
 }
 
 void ParticleSystem::mapResourcesCPU(Renderer &renderer)
@@ -146,6 +154,8 @@ void ParticleSystem::mapResourcesCPU(Renderer &renderer)
     m_particles.velocity_y = (float *)glMapBufferRange(GL_ARRAY_BUFFER, 0, m_particleCount * sizeof(float), GL_MAP_WRITE_BIT | GL_MAP_READ_BIT);
     glBindBuffer(GL_ARRAY_BUFFER, renderer.getVBO_Radius());
     m_particles.radius = (float *)glMapBufferRange(GL_ARRAY_BUFFER, 0, m_particleCount * sizeof(float), GL_MAP_WRITE_BIT | GL_MAP_READ_BIT);
+    glBindBuffer(GL_ARRAY_BUFFER, renderer.getVBO_Mass());
+    m_particles.mass = (float *)glMapBufferRange(GL_ARRAY_BUFFER, 0, m_particleCount * sizeof(float), GL_MAP_WRITE_BIT | GL_MAP_READ_BIT);
 }
 
 void ParticleSystem::unmapResourcesCPU()
@@ -161,6 +171,7 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, f
     std::vector<float> h_vel_x(m_particleCount);
     std::vector<float> h_vel_y(m_particleCount);
     std::vector<float> h_radius(m_particleCount);
+    std::vector<float> h_mass_vec(m_particleCount);
 
     if (mode == SpawnMode::UNIFORM)
     {
@@ -372,6 +383,7 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, f
         h_prev_y[i] = h_pos_y[i] - h_vel_y[i] * simParams.dt;
 
         h_radius[i] = particleRadius;
+        h_mass_vec[i] = 1.0f + ((float)rand() / RAND_MAX) * 4.0f; // Mass between 1.0 and 5.0
     }
 
     if (m_useCUDA)
@@ -390,6 +402,8 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, f
                               m_particleCount * sizeof(float), cudaMemcpyHostToDevice));
         CUDA_CHECK(cudaMemcpy(m_particles.radius, h_radius.data(),
                               m_particleCount * sizeof(float), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(m_particles.mass, h_mass_vec.data(),
+                              m_particleCount * sizeof(float), cudaMemcpyHostToDevice));
     }
     else
     {
@@ -400,6 +414,7 @@ void ParticleSystem::initializeParticleData(int windowWidth, int windowHeight, f
         std::copy(h_vel_x.begin(), h_vel_x.end(), m_particles.velocity_x);
         std::copy(h_vel_y.begin(), h_vel_y.end(), m_particles.velocity_y);
         std::copy(h_radius.begin(), h_radius.end(), m_particles.radius);
+        std::copy(h_mass_vec.begin(), h_mass_vec.end(), m_particles.mass);
     }
 }
 
@@ -443,6 +458,8 @@ void ParticleSystem::shiftParticles(float dx, float dy, Renderer *renderer)
             glUnmapBuffer(GL_ARRAY_BUFFER);
             glBindBuffer(GL_ARRAY_BUFFER, renderer->getVBO_Radius());
             glUnmapBuffer(GL_ARRAY_BUFFER);
+            glBindBuffer(GL_ARRAY_BUFFER, renderer->getVBO_Mass());
+            glUnmapBuffer(GL_ARRAY_BUFFER);
             glBindBuffer(GL_ARRAY_BUFFER, 0);
         }
     }
@@ -469,6 +486,8 @@ void ParticleSystem::reset(int windowWidth, int windowHeight, float particleRadi
         glBindBuffer(GL_ARRAY_BUFFER, renderer.getVBO_VelY());
         glUnmapBuffer(GL_ARRAY_BUFFER);
         glBindBuffer(GL_ARRAY_BUFFER, renderer.getVBO_Radius());
+        glUnmapBuffer(GL_ARRAY_BUFFER);
+        glBindBuffer(GL_ARRAY_BUFFER, renderer.getVBO_Mass());
         glUnmapBuffer(GL_ARRAY_BUFFER);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
     }
